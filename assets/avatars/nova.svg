@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0A1628"/>
+      <stop offset="100%" stop-color="#060D1A"/>
+    </linearGradient>
+    <linearGradient id="spiral1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FD79A8"/>
+      <stop offset="50%" stop-color="#E84393"/>
+      <stop offset="100%" stop-color="#6C5CE7"/>
+    </linearGradient>
+    <linearGradient id="spiral2" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#A29BFE"/>
+      <stop offset="100%" stop-color="#6C5CE7"/>
+    </linearGradient>
+    <radialGradient id="core" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FD79A8" stop-opacity="0.4"/>
+      <stop offset="50%" stop-color="#E84393" stop-opacity="0.1"/>
+      <stop offset="100%" stop-color="#6C5CE7" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="bgGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FD79A8" stop-opacity="0.08"/>
+      <stop offset="100%" stop-color="#FD79A8" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <!-- Background circle -->
+  <circle cx="100" cy="100" r="98" fill="url(#bg)" stroke="url(#spiral1)" stroke-width="2" opacity="0.9"/>
+  <!-- Inner glow -->
+  <circle cx="100" cy="100" r="96" fill="url(#bgGlow)"/>
+  <!-- Core glow -->
+  <circle cx="100" cy="100" r="50" fill="url(#core)"/>
+  <!-- Spiral galaxy arms -->
+  <g fill="none" stroke-width="2" opacity="0.7">
+    <!-- Arm 1 -->
+    <path d="M100,100 Q110,80 120,75 Q135,68 140,80 Q145,95 135,110 Q125,125 110,120 Q95,115 95,100 Q95,88 105,82 Q118,75 128,85 Q135,98 125,112 Q115,122 105,115" stroke="url(#spiral1)" stroke-width="2.5" opacity="0.8"/>
+    <!-- Arm 2 (mirrored) -->
+    <path d="M100,100 Q90,120 80,125 Q65,132 60,120 Q55,105 65,90 Q75,75 90,80 Q105,85 105,100 Q105,112 95,118 Q82,125 72,115 Q65,102 75,88 Q85,78 95,85" stroke="url(#spiral2)" stroke-width="2" opacity="0.6"/>
+  </g>
+  <!-- Star dots along spiral arms -->
+  <g fill="#FFFFFF" opacity="0.8">
+    <!-- Arm 1 stars -->
+    <circle cx="120" cy="75" r="2.5"/>
+    <circle cx="140" cy="80" r="2"/>
+    <circle cx="135" cy="110" r="2.5"/>
+    <circle cx="110" cy="120" r="2"/>
+    <circle cx="128" cy="85" r="1.5"/>
+    <circle cx="125" cy="112" r="1.5"/>
+    <!-- Arm 2 stars -->
+    <circle cx="80" cy="125" r="2.5"/>
+    <circle cx="60" cy="120" r="2"/>
+    <circle cx="65" cy="90" r="2.5"/>
+    <circle cx="90" cy="80" r="2"/>
+    <circle cx="72" cy="115" r="1.5"/>
+    <circle cx="75" cy="88" r="1.5"/>
+  </g>
+  <!-- Bright star dots -->
+  <g fill="#FFFFFF" opacity="0.5">
+    <circle cx="132" cy="95" r="1"/>
+    <circle cx="68" cy="105" r="1"/>
+    <circle cx="105" cy="70" r="1"/>
+    <circle cx="95" cy="130" r="1"/>
+  </g>
+  <!-- Center bright core -->
+  <circle cx="100" cy="100" r="6" fill="#FD79A8" opacity="0.9"/>
+  <circle cx="100" cy="100" r="3" fill="#FFFFFF" opacity="0.9"/>
+</svg>

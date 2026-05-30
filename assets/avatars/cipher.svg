@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0A1628"/>
+      <stop offset="100%" stop-color="#060D1A"/>
+    </linearGradient>
+    <linearGradient id="glow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00E5FF"/>
+      <stop offset="100%" stop-color="#007BFF"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4DC9F6"/>
+      stop offset="100%" stop-color="#00CEC9"/>
+    </linearGradient>
+    <radialGradient id="bgGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#00E5FF" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="#00E5FF" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <!-- Background circle -->
+  <circle cx="100" cy="100" r="98" fill="url(#bg)" stroke="url(#glow)" stroke-width="2" opacity="0.9"/>
+  <!-- Inner glow -->
+  <circle cx="100" cy="100" r="96" fill="url(#bgGlow)"/>
+  <!-- Circuit board hex grid -->
+  <g stroke="url(#accent)" stroke-width="1.2" fill="none" opacity="0.6">
+    <!-- Central hexagon -->
+    <polygon points="100,55 130,72 130,105 100,122 70,105 70,72" stroke-width="1.5"/>
+    <!-- Inner hex -->
+    <polygon points="100,68 118,79 118,100 100,111 82,100 82,79" stroke-width="1" opacity="0.5"/>
+    <!-- Data lines -->
+    <line x1="100" y1="55" x2="100" y2="35" stroke-width="1.2"/>
+    <line x1="130" y1="72" x2="155" y2="60" stroke-width="1"/>
+    <line x1="130" y1="105" x2="155" y2="115" stroke-width="1"/>
+    <line x1="100" y1="122" x2="100" y2="142" stroke-width="1.2"/>
+    <line x1="70" y1="105" x2="45" y2="115" stroke-width="1"/>
+    <line x1="70" y1="72" x2="45" y2="60" stroke-width="1"/>
+  </g>
+  <!-- Connection nodes -->
+  <g fill="url(#accent)" opacity="0.9">
+    <circle cx="100" cy="35" r="3"/>
+    <circle cx="155" cy="60" r="2.5"/>
+    <circle cx="155" cy="115" r="2.5"/>
+    <circle cx="100" cy="142" r="3"/>
+    <circle cx="45" cy="115" r="2.5"/>
+    <circle cx="45" cy="60" r="2.5"/>
+  </g>
+  <!-- Center chip icon -->
+  <g transform="translate(88, 84)" fill="none" stroke="url(#glow)" stroke-width="1.5" opacity="0.8">
+    <rect x="0" y="0" width="24" height="24" rx="3" stroke-width="1.2"/>
+    <line x1="4" y1="12" x2="20" y2="12" stroke-width="1"/>
+    <line x1="12" y1="4" x2="12" y2="20" stroke-width="1"/>
+    <line x1="7" y1="4" x2="7" y2="7" stroke-width="0.8"/>
+    <line x1="17" y1="4" x2="17" y2="7" stroke-width="0.8"/>
+    <line x1="7" y1="17" x2="7" y2="20" stroke-width="0.8"/>
+    <line x1="17" y1="17" x2="17" y2="20" stroke-width="0.8"/>
+    <line x1="4" y1="7" x2="7" y2="7" stroke-width="0.8"/>
+    <line x1="4" y1="17" x2="7" y2="17" stroke-width="0.8"/>
+    <line x1="17" y1="7" x2="20" y2="7" stroke-width="0.8"/>
+    <line x1="17" y1="17" x2="20" y2="17" stroke-width="0.8"/>
+  </g>
+  <!-- Orbiting data dots -->
+  <g fill="url(#accent)" opacity="0.4">
+    <circle cx="148" cy="88" r="2"/>
+    <circle cx="52" cy="88" r="2"/>
+  </g>
+</svg>
