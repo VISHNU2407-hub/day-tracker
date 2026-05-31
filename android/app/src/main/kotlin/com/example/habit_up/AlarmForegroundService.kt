@@ -13,6 +13,7 @@ import android.media.RingtoneManager
 import android.net.Uri
 import android.os.Build
 import android.os.IBinder
+import android.os.PowerManager
 import android.provider.Settings
 import androidx.core.app.NotificationCompat
 import kotlin.math.absoluteValue
@@ -31,6 +32,11 @@ class AlarmForegroundService : Service() {
         const val EXTRA_PAYLOAD_JSON = "payload_json"
         const val EXTRA_ALARM_ID = "alarm_id"
 
+        private val CHANNEL_SOUND: Uri by lazy {
+            RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+                ?: Settings.System.DEFAULT_ALARM_ALERT_URI
+        }
+
         /**
          * Derive a unique, stable notification ID from the alarm payload's
          * [alarmId].  Same alarmId → same notification ID (updates existing
@@ -40,7 +46,7 @@ class AlarmForegroundService : Service() {
          * Prevents the problem where multiple simultaneous or near-simultaneous
          * alarms all share the same hardcoded ID and overwrite each other.
          */
-        private fun notificationIdFor(payloadJson: String): Int {
+        fun notificationIdFor(payloadJson: String): Int {
             val alarmId = runCatching {
                 JSONObject(payloadJson).optString("alarmId", "")
             }.getOrDefault("")
@@ -61,6 +67,122 @@ class AlarmForegroundService : Service() {
             return (rawId.absoluteValue % (Int.MAX_VALUE - PENDING_INTENT_REQUEST_BASE - 1)) + PENDING_INTENT_REQUEST_BASE
         }
 
+        // ── Direct notification posting (from broadcast receiver) ─────────
+        // Posts an alarm notification directly via NotificationManager, bypassing
+        // the foreground service entirely. This is critical because when the phone
+        // is LOCKED, the system may block or delay startForegroundService(). The
+        // broadcast receiver (triggered by AlarmManager) always runs, so posting
+        // the notification here guarantees it appears on the lock screen.
+        //
+        // The notification includes:
+        //   - Full-screen intent → opens AlarmActivity over the lock screen
+        //   - Lock screen visibility → shows content on lock screen
+        //   - Alarm category + high importance → proper alerting behavior
+        //
+        // The foreground service (started separately) handles looping audio.
+        private fun buildDirectNotification(context: Context, payloadJson: String): Notification {
+            val payload = runCatching { JSONObject(payloadJson) }.getOrNull()
+            val title = payload?.optString("taskName")?.takeIf { it.isNotBlank() }
+                ?: payload?.optString("title")?.takeIf { it.isNotBlank() }
+                ?: if (payload?.optString("type") == "bedtime") "Plan tomorrow" else "Alarm"
+            val text = payload?.optString("description")?.takeIf { it.isNotBlank() }
+                ?: payload?.optString("message")?.takeIf { it.isNotBlank() }
+                ?: "Alarm is ringing"
+
+            val prefs = context.getSharedPreferences("alarm_settings", Context.MODE_PRIVATE)
+            val fullscreenEnabled = prefs.getBoolean("fullscreen_enabled", true)
+
+            // ── Full-screen intent: opens AlarmActivity over the lock screen ─
+            val alarmIntent = Intent(context, AlarmActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                putExtra(AlarmActivity.EXTRA_PAYLOAD_JSON, payloadJson)
+            }
+            val pendingFlags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            } else {
+                PendingIntent.FLAG_UPDATE_CURRENT
+            }
+            val alarmPendingIntent = PendingIntent.getActivity(
+                context,
+                pendingRequestCodeFor(payloadJson),
+                alarmIntent,
+                pendingFlags
+            )
+
+            // ── Content intent: opens MainActivity when notification is tapped ─
+            val contentIntent = Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                putExtra(AlarmActivity.EXTRA_PAYLOAD_JSON, payloadJson)
+            }
+            val contentPendingIntent = PendingIntent.getActivity(
+                context,
+                pendingRequestCodeFor(payloadJson) + 1,
+                contentIntent,
+                pendingFlags
+            )
+
+            // Use the platform-style alarm heads-up notification
+            return NotificationCompat.Builder(context, CHANNEL_ID)
+                .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+                .setContentTitle(title)
+                .setContentText(text)
+                .setTicker("$title - $text")
+                .setPriority(NotificationCompat.PRIORITY_MAX)
+                .setCategory(NotificationCompat.CATEGORY_ALARM)
+                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                .setOngoing(true)
+                .setAutoCancel(false)
+                .setShowWhen(true)
+                .setDefaults(
+                    NotificationCompat.DEFAULT_LIGHTS or
+                    NotificationCompat.DEFAULT_VIBRATE or
+                    NotificationCompat.DEFAULT_SOUND
+                )
+                .setSound(CHANNEL_SOUND)
+                .apply {
+                    if (fullscreenEnabled) {
+                        setFullScreenIntent(alarmPendingIntent, true)
+                    }
+                    setContentIntent(contentPendingIntent)
+                }
+                .build()
+        }
+
+        fun postDirectNotification(context: Context, payloadJson: String) {
+            runCatching {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    // Ensure the notification channel exists before posting
+                    val manager = context.getSystemService(NotificationManager::class.java)
+                    val channel = NotificationChannel(
+                        CHANNEL_ID,
+                        "Full-screen alarms",
+                        NotificationManager.IMPORTANCE_HIGH
+                    ).apply {
+                        description = "Critical full-screen alarm playback"
+                        lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+                        setSound(CHANNEL_SOUND, AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_ALARM)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                            .build())
+                        enableVibration(true)
+                        enableLights(true)
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                            setBypassDnd(true)
+                        }
+                    }
+                    manager.createNotificationChannel(channel)
+                }
+
+                val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                manager.notify(
+                    notificationIdFor(payloadJson),
+                    buildDirectNotification(context, payloadJson)
+                )
+            }.onFailure { _ ->
+                // Direct notification failed — continue anyway
+            }
+        }
+
         fun start(context: Context, payloadJson: String) {
             val intent = Intent(context, AlarmForegroundService::class.java).apply {
                 action = ACTION_START
@@ -71,13 +193,6 @@ class AlarmForegroundService : Service() {
             } else {
                 context.startService(intent)
             }
-        }
-
-        fun stopAudio(context: Context) {
-            val intent = Intent(context, AlarmForegroundService::class.java).apply {
-                action = ACTION_STOP_AUDIO
-            }
-            context.startService(intent)
         }
 
         fun stopAudio(context: Context, alarmId: String? = null) {
@@ -99,10 +214,39 @@ class AlarmForegroundService : Service() {
     }
 
     private val mediaPlayers = ConcurrentHashMap<String, MediaPlayer>()
+    private var wakeLock: PowerManager.WakeLock? = null
 
     override fun onCreate() {
         super.onCreate()
         createChannel()
+    }
+
+    // ── Wake lock: keeps the CPU awake while alarm audio is playing ─────
+    // Without this, pressing the power button (screen off) can cause the
+    // CPU to enter deep sleep, stopping MediaPlayer playback.
+    private fun acquireWakeLock() {
+        if (wakeLock?.isHeld == true) return
+        val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+        wakeLock = powerManager.newWakeLock(
+            PowerManager.PARTIAL_WAKE_LOCK,
+            "HabitUp:AlarmAudioWakeLock"
+        )
+        // Use a generous 10-minute timeout as a safety net to prevent
+        // indefinite CPU wake in edge cases (e.g. the user walks away).
+        runCatching {
+            wakeLock?.acquire(10 * 60 * 1000L)
+        }.onFailure { _ ->
+            // Wake lock not granted — continue without it
+        }
+    }
+
+    private fun releaseWakeLock() {
+        wakeLock?.let {
+            if (it.isHeld) {
+                runCatching { it.release() }.onFailure { _ -> }
+            }
+        }
+        wakeLock = null
     }
 
     // ---------------------------------------------------------------------------
@@ -140,6 +284,39 @@ class AlarmForegroundService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // ── IMMEDIATE startForeground() ──────────────────────────────────
+        // CRITICAL: On Android 15+, there is a strict timeout between
+        // startForegroundService() and startForeground(). If the service
+        // fails to call startForeground() quickly enough, it is killed with
+        // "Context.startForegroundService() did not then call
+        // Service.startForeground()" crash.
+        //
+        // We call startForeground() FIRST with a safe notification, BEFORE
+        // any JSON parsing, wake lock acquisition, or MediaPlayer setup.
+        // The notification is updated later with the actual payload content.
+        val incomingPayload = intent?.getStringExtra(EXTRA_PAYLOAD_JSON)
+            ?: AlarmPayloadStore.peek(applicationContext)
+
+        if (incomingPayload != null) {
+            runCatching {
+                startForeground(
+                    notificationIdFor(incomingPayload),
+                    buildNotification(incomingPayload)
+                )
+            }.onFailure { _ ->
+                // startForeground() failed (e.g. POST_NOTIFICATIONS denied).
+                // The receiver's direct audio fallback (playDirectAudio in
+                // AlarmReceiver) will still play audio even without a
+                // foreground notification.
+            }
+        } else {
+            // No payload available yet — show a generic alarm notification
+            // so startForeground() succeeds. It will be updated below.
+            runCatching {
+                startForeground(NOTIFICATION_ID_BASE, buildDefaultNotification())
+            }.onFailure { _ -> }
+        }
+
         when (intent?.action) {
             ACTION_STOP_AUDIO -> {
                 val alarmId = intent.getStringExtra(EXTRA_ALARM_ID)
@@ -166,8 +343,7 @@ class AlarmForegroundService : Service() {
                 return START_NOT_STICKY
             }
             ACTION_START, null -> {
-                val payloadJson = intent?.getStringExtra(EXTRA_PAYLOAD_JSON)
-                    ?: AlarmPayloadStore.peek(applicationContext)
+                val payloadJson = incomingPayload
                     ?: """{"type":"task","title":"Alarm","description":"Time to focus"}"""
 
                 val alarmId = extractAlarmId(payloadJson)
@@ -177,15 +353,32 @@ class AlarmForegroundService : Service() {
                     AlarmPayloadStore.enqueue(applicationContext, payloadJson)
                 }
 
-                // ── Stop any previous alarm audio so only one plays at a time ──
+                // ── Take over from receiver's direct audio ────────────────
+                // The BroadcastReceiver (AlarmReceiver) may have started
+                // direct MediaPlayer audio as a fallback (playDirectAudio)
+                // because startForegroundService() can be blocked on locked
+                // devices. Now that this service has started successfully,
+                // stop the receiver's audio to avoid double-playback.
+                // Our own startLoopingAudio() below will handle playback
+                // with proper wake lock management.
+                AlarmReceiver.stopDirectAudio()
+
+                // ── Stop any previous alarm audio so only one plays ───────
                 // When a new alarm fires while another is still ringing, this
                 // prevents overlapping alarm sounds.
                 stopAllAudio()
 
+                // ── Update the foreground notification with actual payload ─
+                // The initial startForeground() call above used a fast
+                // notification. Now update it with the proper payload title,
+                // text, full-screen intent, etc.
                 try {
-                    startForeground(notificationIdFor(payloadJson), buildNotification(payloadJson))
-                } catch (e: Exception) {
-                    // startForeground failed
+                    val manager = getSystemService(NotificationManager::class.java)
+                    manager.notify(
+                        notificationIdFor(payloadJson),
+                        buildNotification(payloadJson)
+                    )
+                } catch (_: Exception) {
                 }
 
                 startLoopingAudio(payloadJson)
@@ -194,7 +387,7 @@ class AlarmForegroundService : Service() {
                 // Direct background startActivity() is intentionally
                 // removed because MIUI / HyperOS intercepts and blocks it,
                 // causing the full-screen alarm to silently fail.
-                return START_STICKY
+                return START_REDELIVER_INTENT
             }
             else -> {
                 return START_STICKY
@@ -206,11 +399,34 @@ class AlarmForegroundService : Service() {
 
     override fun onDestroy() {
         stopAllAudio()
+        releaseWakeLock()
         super.onDestroy()
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
+        // System is removing the task — keep the service alive because
+        // the alarm is still ringing. Do NOT stop audio here.
+        // The service will continue as a foreground service.
         super.onTaskRemoved(rootIntent)
+    }
+
+    /**
+     * Build a safe default notification for use when no payload is available.
+     * This is used by startForeground() at the top of onStartCommand() when
+     * we must call startForeground() immediately but haven't parsed the
+     * payload yet.
+     */
+    private fun buildDefaultNotification(): Notification {
+        return NotificationCompat.Builder(this, CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+            .setContentTitle("Alarm")
+            .setContentText("Alarm is ringing")
+            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setCategory(NotificationCompat.CATEGORY_ALARM)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setOngoing(true)
+            .setAutoCancel(false)
+            .build()
     }
 
     private fun buildNotification(payloadJson: String): Notification {
@@ -225,7 +441,7 @@ class AlarmForegroundService : Service() {
         val fullscreenEnabled = isFullscreenEnabled()
         val vibrationEnabled = isVibrationEnabled()
 
-        // ── Full-screen intent: opens AlarmActivity ─────────────────────
+        // ── Full-screen intent: opens AlarmActivity over the lock screen ─
         val alarmIntent = Intent(this, AlarmActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
             putExtra(AlarmActivity.EXTRA_PAYLOAD_JSON, payloadJson)
@@ -237,7 +453,7 @@ class AlarmForegroundService : Service() {
         }
         val alarmPendingIntent = PendingIntent.getActivity(this, pendingRequestCodeFor(payloadJson), alarmIntent, pendingFlags)
 
-        // ── Content intent: opens MainActivity when the banner is tapped ─
+        // ── Content intent: opens MainActivity when the notification banner is tapped ─
         val contentIntent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra(AlarmActivity.EXTRA_PAYLOAD_JSON, payloadJson)
@@ -258,6 +474,7 @@ class AlarmForegroundService : Service() {
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
             .setContentTitle(title)
             .setContentText(text)
+            .setTicker("$title - $text")  // Ticker text for lock screen scrolling
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
@@ -279,6 +496,8 @@ class AlarmForegroundService : Service() {
                     // Use default system vibration pattern
                     setDefaults(NotificationCompat.DEFAULT_VIBRATE)
                 }
+
+
             }
             .build()
     }
@@ -296,6 +515,12 @@ class AlarmForegroundService : Service() {
         if (mediaPlayers.containsKey(alarmId)) {
             return
         }
+
+        // ── Acquire wake lock to keep CPU awake while audio plays ─────
+        // This is critical — without it, pressing the power button (screen
+        // off) lets the CPU sleep, stopping MediaPlayer playback even
+        // though the foreground service continues running.
+        acquireWakeLock()
 
         val payload = runCatching { JSONObject(payloadJson) }.getOrNull()
 
@@ -340,6 +565,9 @@ class AlarmForegroundService : Service() {
                 setOnErrorListener { p, what, extra ->
                     runCatching { p.reset(); p.release() }
                     mediaPlayers.remove(alarmId)
+                    if (mediaPlayers.isEmpty()) {
+                        releaseWakeLock()
+                    }
                     true
                 }
 
@@ -357,7 +585,10 @@ class AlarmForegroundService : Service() {
 
             mediaPlayers[alarmId] = player
         }.onFailure { _ ->
-            // MediaPlayer failed
+            // MediaPlayer failed — release wake lock since no audio
+            if (mediaPlayers.isEmpty()) {
+                releaseWakeLock()
+            }
         }
     }
 
@@ -369,6 +600,10 @@ class AlarmForegroundService : Service() {
             player.reset()
             player.release()
         }.onFailure { _ -> }
+        // Release wake lock when no more players are active
+        if (mediaPlayers.isEmpty()) {
+            releaseWakeLock()
+        }
     }
 
     private fun stopAllAudio() {
@@ -380,6 +615,7 @@ class AlarmForegroundService : Service() {
             }.onFailure { _ -> }
         }
         mediaPlayers.clear()
+        releaseWakeLock()
     }
 
     private fun createChannel() {
@@ -394,6 +630,10 @@ class AlarmForegroundService : Service() {
         ).apply {
             description = "Critical full-screen alarm playback"
             lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+            // Set the alarm URI as the channel's sound so the notification
+            // properly alerts on the lock screen. The channel sound plays
+            // once when the notification is posted; the looping audio is
+            // handled separately by the MediaPlayer.
             val alarmUri: Uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
                 ?: Settings.System.DEFAULT_ALARM_ALERT_URI
             val audioAttrs = AudioAttributes.Builder()
@@ -406,6 +646,8 @@ class AlarmForegroundService : Service() {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 setBypassDnd(true)
             }
+            // Ensure the notification shows on the lock screen
+            // VISIBILITY_PUBLIC is already set via lockscreenVisibility above
         }
         manager.createNotificationChannel(channel)
     }

@@ -137,6 +137,16 @@ class AlarmActivity : FlutterActivity() {
                         .apply()
                     result.success(null)
                 }
+                "saveBedtimeTime" -> {
+                    val hour = call.argument<Int>("hour") ?: 21
+                    val minute = call.argument<Int>("minute") ?: 0
+                    getSharedPreferences("alarm_settings", Context.MODE_PRIVATE)
+                        .edit()
+                        .putInt("bedtime_hour", hour)
+                        .putInt("bedtime_minute", minute)
+                        .apply()
+                    result.success(null)
+                }
                 "launchCalendar" -> {
                     val launch = packageManager.getLaunchIntentForPackage(packageName)
                     launch?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)

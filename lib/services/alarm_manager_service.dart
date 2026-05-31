@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 class AlarmManagerService {
@@ -40,7 +41,8 @@ class AlarmManagerService {
     try {
       final result = await _channel.invokeMethod('getInitialAlarmPayload');
       return result as String?;
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[AlarmManagerService] getInitialAlarmPayload failed: $e');
       return null;
     }
   }
@@ -53,14 +55,16 @@ class AlarmManagerService {
       if (nextPayload != null) {
         _payloadController.add(nextPayload);
       }
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[AlarmManagerService] dismissCurrentAlarm failed: $e');
     }
   }
 
   Future<void> stopAlarmAudio() async {
     try {
       await _channel.invokeMethod('stopAlarmAudio');
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[AlarmManagerService] stopAlarmAudio failed: $e');
     }
   }
 
@@ -74,7 +78,8 @@ class AlarmManagerService {
       if (nextPayload != null) {
         _payloadController.add(nextPayload);
       }
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[AlarmManagerService] snoozeAlarm failed: $e');
     }
   }
 
@@ -83,18 +88,23 @@ class AlarmManagerService {
     required int triggerAtMillis,
   }) async {
     try {
+      debugPrint(
+        '[AlarmManagerService] scheduleAlarm: $triggerAtMillis payload=${payload.length}chars',
+      );
       await _channel.invokeMethod('scheduleAlarmPayload', {
         'payload': payload,
         'triggerAtMillis': triggerAtMillis,
       });
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[AlarmManagerService] scheduleAlarm failed: $e');
     }
   }
 
   Future<void> cancelAlarm({required String payload}) async {
     try {
       await _channel.invokeMethod('cancelAlarmPayload', {'payload': payload});
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[AlarmManagerService] cancelAlarm failed: $e');
     }
   }
 
@@ -106,7 +116,23 @@ class AlarmManagerService {
       await _channel.invokeMethod('saveBedtimeReminderEnabled', {
         'enabled': enabled,
       });
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[AlarmManagerService] syncBedtimeReminderEnabled failed: $e');
+    }
+  }
+
+  /// Persists the user's preferred bedtime time (hour/minute) to native
+  /// SharedPreferences so [AlarmReceiver.rescheduleNextBedtime] and
+  /// [AlarmScheduler.reschedulePersisted] can schedule the next alarm at the
+  /// correct time of day — even when the phone is rebooted.
+  Future<void> syncBedtimeTime(int hour, int minute) async {
+    try {
+      await _channel.invokeMethod('saveBedtimeTime', {
+        'hour': hour,
+        'minute': minute,
+      });
+    } catch (e) {
+      debugPrint('[AlarmManagerService] syncBedtimeTime failed: $e');
     }
   }
 

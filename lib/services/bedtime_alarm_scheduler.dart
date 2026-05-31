@@ -35,6 +35,7 @@ class BedtimeAlarmScheduler {
       );
 
       await _alarmManager.syncBedtimeReminderEnabled(true);
+      await _alarmManager.syncBedtimeTime(bedtime.hour, bedtime.minute);
     } catch (_) {
     }
   }

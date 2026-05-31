@@ -4,8 +4,13 @@ import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.media.AudioAttributes
+import android.media.MediaPlayer
+import android.media.RingtoneManager
+import android.net.Uri
 import android.os.Build
 import android.os.PowerManager
+import android.provider.Settings
 import org.json.JSONObject
 import java.util.Locale
 
@@ -17,7 +22,29 @@ class AlarmReceiver : BroadcastReceiver() {
         const val EXTRA_NOTIFICATION_ID = "notification_id"
         const val EXTRA_PAYLOAD_JSON = "payload_json"
         private const val WAKE_LOCK_TAG = "HabitUp:AlarmWakeLock"
-        private const val WAKE_LOCK_TIMEOUT_MS = 10_000L
+        private const val WAKE_LOCK_TIMEOUT_MS = 30_000L
+
+        // ── Direct audio player (from BroadcastReceiver) ────────────────
+        // Stored in companion object to prevent garbage collection after
+        // onReceive() returns. The player keeps running on the receiver's
+        // wake lock for ~30 seconds.
+        private var directAudioPlayer: MediaPlayer? = null
+
+        /**
+         * Stop any audio playing directly from the BroadcastReceiver.
+         * Called by AlarmForegroundService when it successfully starts and
+         * takes over audio playback.
+         */
+        fun stopDirectAudio() {
+            directAudioPlayer?.let {
+                runCatching {
+                    if (it.isPlaying) it.stop()
+                    it.reset()
+                    it.release()
+                }.onFailure { _ -> }
+                directAudioPlayer = null
+            }
+        }
 
         fun createPendingIntent(
             context: Context,
@@ -59,6 +86,20 @@ class AlarmReceiver : BroadcastReceiver() {
             ?: legacyPayload(intent)
 
         val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+        // ── Wake lock handoff ─────────────────────────────────────────────
+        // CRITICAL: Do NOT release this wake lock immediately! The wake lock
+        // is acquired with a 30-second timeout and auto-releases after that.
+        // 
+        // Reason: startForegroundService() is ASYNCHRONOUS — the service's
+        // onStartCommand() runs AFTER onReceive() returns. If we release the
+        // wake lock in a finally block, there is a gap with NO wake lock
+        // before the foreground service acquires its own. During this gap,
+        // the CPU can enter deep sleep (power button pressed, screen off)
+        // and kill the MediaPlayer before it even starts.
+        //
+        // By keeping the wake lock held for 30 seconds, we guarantee the
+        // foreground service has enough time to start and acquire its own
+        // PARTIAL_WAKE_LOCK (which is released when audio stops).
         val wakeLock = powerManager.newWakeLock(
             PowerManager.PARTIAL_WAKE_LOCK or
                 PowerManager.ACQUIRE_CAUSES_WAKEUP,
@@ -67,24 +108,89 @@ class AlarmReceiver : BroadcastReceiver() {
 
         try {
             wakeLock.acquire(WAKE_LOCK_TIMEOUT_MS)
+        } catch (_: SecurityException) {
+            // Wake lock not permitted — continue anyway
+        }
 
+        try {
             AlarmPayloadStore.removeScheduled(
                 context.applicationContext,
                 AlarmScheduler.alarmIdFor(payloadJson)
             )
 
-            AlarmForegroundService.start(context.applicationContext, payloadJson)
+            // ── Direct notification (CRITICAL for lock screen) ──────────────
+            // Post the alarm notification DIRECTLY from the broadcast receiver,
+            // BEFORE starting the foreground service. This is the KEY fix for
+            // lock screen alarms:
+            //
+            // When the phone is LOCKED, Android may block or delay
+            // startForegroundService() — but the broadcast receiver ALWAYS runs
+            // when AlarmManager fires. By posting the notification here, we
+            // guarantee it shows on the lock screen with the full-screen intent
+            // to open AlarmActivity.
+            //
+            // The foreground service (started below) is a secondary channel
+            // for looping audio and wake lock management.
+            AlarmForegroundService.postDirectNotification(
+                context.applicationContext,
+                payloadJson
+            )
 
-            // ── Auto-reschedule bedtime alarm for the next day ─────────────
-            // This ensures the bedtime alarm repeats daily in the background
-            // without requiring the user to open the app.
+            // ── Play audio DIRECTLY from the BroadcastReceiver ────────────
+            // CRITICAL: On Android 12+, when the phone is locked and the app
+            // has been in the background for an extended period, the system
+            // may BLOCK or DELAY startForegroundService() from a
+            // BroadcastReceiver. This is especially aggressive on HyperOS
+            // (Xiaomi/MIUI), OneUI (Samsung), and ColorOS (Oppo/OnePlus).
+            //
+            // By playing audio directly from the receiver (using the 30-second
+            // wake lock that keeps the CPU awake), we guarantee the user hears
+            // the alarm EVEN if the foreground service never starts. This is
+            // the "nuclear option" that bypasses all foreground service
+            // restrictions.
+            //
+            // The MediaPlayer runs in the receiver's process, which has the
+            // PARTIAL_WAKE_LOCK for 30 seconds. After 30 seconds, the wake
+            // lock auto-releases — by which time either:
+            //   1. The foreground service has started and acquired its own
+            //      wake lock (continues playing), OR
+            //   2. The user has opened the app (process is now foreground), OR
+            //   3. The audio fades out gracefully
+            playDirectAudio(context.applicationContext, payloadJson)
+
+            // ── Foreground service for looping audio ─────────────────────
+            // Starts the service that plays the looping alarm sound and
+            // manages the persistent wake lock. This may be delayed or
+            // blocked when the phone is locked, which is why the direct
+            // notification above is the primary lock-screen path.
+            //
+            // If the service starts successfully, it will acquire its own
+            // PARTIAL_WAKE_LOCK (10-minute timeout) and take over audio
+            // playback. The direct audio from the receiver will still be
+            // playing (brief overlap) — the service's stopAllAudio() handles
+            // cleanup by calling stopDirectAudio().
+            AlarmForegroundService.start(context.applicationContext, payloadJson)
+        } catch (_: Exception) {
+            // Notification/service start may fail when phone is locked/Doze.
+            // This does NOT affect the next-day rescheduling below.
+        }
+
+        // ── Auto-reschedule bedtime alarm for the next day ───────────────
+        // CRITICAL: This MUST run OUTSIDE the try-catch above. On Android 12+,
+        // startForegroundService() can throw an IllegalStateException when the
+        // phone is locked (Doze mode restrictions). If rescheduleNextBedtime()
+        // is inside the same try block, that exception would prevent it from
+        // running — and the next day's bedtime alarm would never be scheduled.
+        // After a reboot, there would be nothing in the store to restore.
+        
+        // Use a separate try-catch so it runs independently.
+        try {
             rescheduleNextBedtime(context.applicationContext, payloadJson)
         } catch (_: Exception) {
-        } finally {
-            if (wakeLock.isHeld) {
-                wakeLock.release()
-            }
         }
+        // NOTE: Wake lock is deliberately NOT released here. It will
+        // auto-release after WAKE_LOCK_TIMEOUT_MS (30 seconds), by which
+        // time the foreground service will have acquired its own wake lock.
     }
 
     /**
@@ -111,7 +217,25 @@ class AlarmReceiver : BroadcastReceiver() {
                 return
             }
 
-            val nextTrigger = System.currentTimeMillis() + 86_400_000L // +24 hours
+            // Use the user's preferred bedtime hour/minute for accurate next-day
+            // scheduling, rather than blindly adding 24 hours.
+            val bedtimeHour = MainActivity.getBedtimeHour(context)
+            val bedtimeMinute = MainActivity.getBedtimeMinute(context)
+
+            val calendar = java.util.Calendar.getInstance()
+            calendar.set(java.util.Calendar.HOUR_OF_DAY, bedtimeHour)
+            calendar.set(java.util.Calendar.MINUTE, bedtimeMinute)
+            calendar.set(java.util.Calendar.SECOND, 0)
+            calendar.set(java.util.Calendar.MILLISECOND, 0)
+
+            // If today's bedtime has already passed, advance to tomorrow
+            // (e.g. alarm fired at 10:30 PM, bedtime is 9 PM → next is tomorrow 9 PM)
+            val now = System.currentTimeMillis()
+            if (calendar.timeInMillis <= now) {
+                calendar.add(java.util.Calendar.DAY_OF_MONTH, 1)
+            }
+
+            val nextTrigger = calendar.timeInMillis
 
             // ── Preserve custom sound URI from the original payload ─────
             // First try the current payload, then fall back to SharedPreferences
@@ -152,5 +276,91 @@ class AlarmReceiver : BroadcastReceiver() {
             .put("description", taskMessage ?: "")
             .put("notificationId", notId)
             .toString()
+    }
+
+    /**
+     * Play alarm audio directly from the BroadcastReceiver, bypassing the
+     * foreground service entirely. This is the key fix for locked devices
+     * where startForegroundService() is blocked.
+     *
+     * Uses the 30-second wake lock (acquired in onReceive()) to keep the
+     * CPU awake for uninterrupted playback. The audio loops until:
+     *   1. The foreground service starts and takes over (calls stopDirectAudio())
+     *   2. The wake lock expires (~30s)
+     *   3. The user opens the app
+     *
+     * @param context Application context
+     * @param payloadJson The alarm payload JSON
+     */
+    private fun playDirectAudio(context: Context, payloadJson: String) {
+        // Stop any previous direct audio (shouldn't happen, but be safe)
+        stopDirectAudio()
+
+        // ── Honor the alarm_sound_enabled preference ───────────────────
+        val prefs = context.getSharedPreferences("alarm_settings", Context.MODE_PRIVATE)
+        if (!prefs.getBoolean("alarm_sound_enabled", true)) return
+
+        val payload = runCatching { JSONObject(payloadJson) }.getOrNull() ?: return
+
+        // ── Resolve the alarm sound URI ───────────────────────────────
+        // Priority order:
+        //   1. Custom sound URI from payload (user-selected in Flutter UI)
+        //   2. soundUri from payload (legacy/explicit)
+        //   3. System default alarm ringtone
+        //   4. Settings.System default alarm URI (last resort)
+        val customSoundPath = payload.optString("customSoundUri")?.takeIf { it.isNotBlank() }
+        val explicitUri = payload.optString("soundUri")?.takeIf { it.isNotBlank() }
+
+        val alarmUri: Uri = try {
+            customSoundPath?.let { path ->
+                val uri = Uri.parse(path)
+                // Verify the file exists for file:// URIs
+                val file = java.io.File(uri.path ?: path)
+                if (file.exists()) uri else null
+            } ?: explicitUri?.let { Uri.parse(it) }
+                ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+                ?: Settings.System.DEFAULT_ALARM_ALERT_URI
+        } catch (_: Exception) {
+            RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+                ?: Settings.System.DEFAULT_ALARM_ALERT_URI
+        }
+
+        if (alarmUri == Uri.EMPTY) return
+
+        // ── Create and start the MediaPlayer ─────────────────────────
+        runCatching {
+            val player = MediaPlayer().apply {
+                setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_ALARM)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build()
+                )
+                setDataSource(context, alarmUri)
+                isLooping = true
+                setVolume(1.0f, 1.0f)
+
+                setOnErrorListener { p, what, extra ->
+                    runCatching {
+                        if (p.isPlaying) p.stop()
+                        p.reset()
+                        p.release()
+                    }.onFailure { _ -> }
+                    directAudioPlayer = null
+                    true
+                }
+
+                prepare()
+                start()
+            }
+
+            // Store the reference so the GC doesn't collect it after
+            // onReceive() returns. The player keeps running on a separate
+            // thread managed by MediaPlayer internally.
+            directAudioPlayer = player
+        }.onFailure { _ ->
+            // Failed to play audio directly — the foreground service
+            // is still attempted as a fallback.
+        }
     }
 }

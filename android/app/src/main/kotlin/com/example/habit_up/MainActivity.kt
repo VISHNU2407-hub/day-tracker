@@ -42,12 +42,26 @@ class MainActivity : FlutterActivity() {
         private const val KEY_ALARM_SOUND_ENABLED = "alarm_sound_enabled"
         private const val KEY_SNOOZE_ENABLED = "snooze_enabled"
         private const val KEY_CUSTOM_SOUND_URI = "custom_sound_uri"
+        private const val KEY_BEDTIME_HOUR = "bedtime_hour"
+        private const val KEY_BEDTIME_MINUTE = "bedtime_minute"
+        private const val DEFAULT_BEDTIME_HOUR = 21
+        private const val DEFAULT_BEDTIME_MINUTE = 0
 
         // ── Public accessors for other classes (e.g. AlarmReceiver) ──────
         fun getCustomSoundUri(context: Context): String? {
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             val uri = prefs.getString(KEY_CUSTOM_SOUND_URI, null)
             return uri?.takeIf { it.isNotBlank() }
+        }
+
+        fun getBedtimeHour(context: Context): Int {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            return prefs.getInt(KEY_BEDTIME_HOUR, DEFAULT_BEDTIME_HOUR)
+        }
+
+        fun getBedtimeMinute(context: Context): Int {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            return prefs.getInt(KEY_BEDTIME_MINUTE, DEFAULT_BEDTIME_MINUTE)
         }
     }
 
@@ -220,6 +234,16 @@ class MainActivity : FlutterActivity() {
                         getSharedPreferences("alarm_settings", Context.MODE_PRIVATE)
                             .edit()
                             .putBoolean("bedtime_reminder_enabled", enabled)
+                            .apply()
+                        result.success(null)
+                    }
+                    "saveBedtimeTime" -> {
+                        val hour = call.argument<Int>("hour") ?: DEFAULT_BEDTIME_HOUR
+                        val minute = call.argument<Int>("minute") ?: DEFAULT_BEDTIME_MINUTE
+                        getSharedPreferences("alarm_settings", Context.MODE_PRIVATE)
+                            .edit()
+                            .putInt(KEY_BEDTIME_HOUR, hour)
+                            .putInt(KEY_BEDTIME_MINUTE, minute)
                             .apply()
                         result.success(null)
                     }
