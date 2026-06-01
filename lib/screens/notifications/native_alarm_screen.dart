@@ -1,6 +1,9 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:habit_up/providers/task_provider.dart';
+import 'package:habit_up/screens/tasks/widgets/edit_task_dialog.dart';
 import 'package:habit_up/services/alarm_manager_service.dart';
+import 'package:provider/provider.dart';
 
 class NativeAlarmScreen extends StatefulWidget {
   const NativeAlarmScreen({super.key});
@@ -80,6 +83,28 @@ class _NativeAlarmScreenState extends State<NativeAlarmScreen> {
                 SizedBox(
                   width: double.infinity,
                   height: 56,
+                  child: ElevatedButton(
+                    onPressed: _onReschedule,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFFF6D00),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text(
+                      'Reschedule',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  height: 56,
                   child: OutlinedButton(
                     onPressed: _onDismiss,
                     style: OutlinedButton.styleFrom(
@@ -107,6 +132,30 @@ class _NativeAlarmScreenState extends State<NativeAlarmScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _onReschedule() async {
+    final data = _getPayloadData();
+    final taskId = data?['taskId'] as String?;
+    if (taskId == null) return;
+
+    await _alarmService.dismissCurrentAlarm();
+    if (!mounted) return;
+
+    // Show edit dialog directly from inside the alarm screen (which has a
+    // proper BuildContext inside the Navigator). This avoids navigating to
+    // the main page first (Issue A) and prevents the InheritedWidget
+    // _dependents assertion (Issue B).
+    final taskProvider = Provider.of<TaskProvider>(context, listen: false);
+    final task = await taskProvider.getTaskById(taskId);
+    if (task == null || !mounted) return;
+
+    await showEditTaskDialog(context, task, taskProvider);
+
+    // After the dialog is dismissed, pop the alarm screen.
+    if (mounted) {
+      Navigator.of(context).pop();
+    }
   }
 
   Future<void> _onDismiss() async {

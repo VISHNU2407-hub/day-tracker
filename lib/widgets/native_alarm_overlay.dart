@@ -83,6 +83,8 @@ class _NativeAlarmOverlayState extends State<NativeAlarmOverlay> {
           } else if (result == 'dismiss') {
             _showDismissedSnackBar();
           }
+          // 'reschedule' result is no longer propagated via pop — the
+          // NativeAlarmScreen handles the edit dialog internally.
         });
   }
 
