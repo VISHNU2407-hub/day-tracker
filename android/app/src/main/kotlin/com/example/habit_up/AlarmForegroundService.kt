@@ -15,6 +15,7 @@ import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
 import android.provider.Settings
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import kotlin.math.absoluteValue
 import org.json.JSONObject
@@ -151,8 +152,18 @@ class AlarmForegroundService : Service() {
         fun postDirectNotification(context: Context, payloadJson: String) {
             runCatching {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    // Ensure the notification channel exists before posting
                     val manager = context.getSystemService(NotificationManager::class.java)
+                    // ── Diagnose #1: channel importance check ────────────
+                    val existingChannel = manager.getNotificationChannel(CHANNEL_ID)
+                    if (existingChannel != null) {
+                        Log.d("AlarmDiag", "postDirectNotification: channel exists, importance=" +
+                            existingChannel.importance + " (need=${NotificationManager.IMPORTANCE_HIGH})")
+                        val channelCanBypassDnd = existingChannel.canBypassDnd()
+                        Log.d("AlarmDiag", "postDirectNotification: canBypassDnd=$channelCanBypassDnd")
+                    } else {
+                        Log.d("AlarmDiag", "postDirectNotification: channel does NOT exist, creating")
+                    }
+
                     val channel = NotificationChannel(
                         CHANNEL_ID,
                         "Full-screen alarms",
@@ -174,24 +185,43 @@ class AlarmForegroundService : Service() {
                 }
 
                 val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-                manager.notify(
-                    notificationIdFor(payloadJson),
-                    buildDirectNotification(context, payloadJson)
-                )
-            }.onFailure { _ ->
-                // Direct notification failed — continue anyway
+
+                // ── Diagnose #2/#3: POST_NOTIFICATIONS permission ────────
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    val granted = context.checkSelfPermission(
+                        android.Manifest.permission.POST_NOTIFICATIONS
+                    ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                    Log.d("AlarmDiag", "postDirectNotification: POST_NOTIFICATIONS granted=$granted")
+                } else {
+                    Log.d("AlarmDiag", "postDirectNotification: pre-Tiramisu, no permission needed")
+                }
+
+                val notifId = notificationIdFor(payloadJson)
+                Log.d("AlarmDiag", "postDirectNotification: calling notify(id=$notifId)")
+                manager.notify(notifId, buildDirectNotification(context, payloadJson))
+                Log.d("AlarmDiag", "postDirectNotification: notify() returned successfully")
+            }.onFailure { ex ->
+                Log.e("AlarmDiag", "postDirectNotification FAILURE #1/2/3: ${ex.javaClass.simpleName}: ${ex.message}", ex)
             }
         }
 
         fun start(context: Context, payloadJson: String) {
+            Log.d("AlarmDiag", "startForegroundService: called, SDK_INT=${Build.VERSION.SDK_INT}")
             val intent = Intent(context, AlarmForegroundService::class.java).apply {
                 action = ACTION_START
                 putExtra(EXTRA_PAYLOAD_JSON, payloadJson)
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(intent)
+                try {
+                    context.startForegroundService(intent)
+                    Log.d("AlarmDiag", "startForegroundService: returned normally")
+                } catch (e: Exception) {
+                    Log.e("AlarmDiag", "startForegroundService FAILURE #8: ${e.javaClass.simpleName}: ${e.message}", e)
+                    throw e
+                }
             } else {
                 context.startService(intent)
+                Log.d("AlarmDiag", "startService: returned normally (pre-O)")
             }
         }
 
@@ -505,14 +535,17 @@ class AlarmForegroundService : Service() {
 
     private fun startLoopingAudio(payloadJson: String) {
         val alarmId = extractAlarmId(payloadJson)
+        Log.d("AlarmDiag", "startLoopingAudio ENTERED: alarmId=$alarmId")
 
         // ── Honor the alarm_sound_enabled preference ───────────────────
         if (!isAlarmSoundEnabled()) {
+            Log.w("AlarmDiag", "startLoopingAudio: alarm_sound_enabled is false, returning")
             return
         }
 
         // ── Already playing for this alarm ID?  Then we're done ────────
         if (mediaPlayers.containsKey(alarmId)) {
+            Log.d("AlarmDiag", "startLoopingAudio: already playing alarmId=$alarmId")
             return
         }
 
@@ -547,9 +580,11 @@ class AlarmForegroundService : Service() {
             ?: Settings.System.DEFAULT_ALARM_ALERT_URI
 
         if (alarmUri == Uri.EMPTY) {
+            Log.w("AlarmDiag", "startLoopingAudio: alarmUri == Uri.EMPTY, returning")
             return
         }
 
+        Log.d("AlarmDiag", "startLoopingAudio: alarmUri=$alarmUri")
         runCatching {
             val player = MediaPlayer().apply {
                 setAudioAttributes(
@@ -563,6 +598,7 @@ class AlarmForegroundService : Service() {
                 setVolume(1.0f, 1.0f)
 
                 setOnErrorListener { p, what, extra ->
+                    Log.e("AlarmDiag", "startLoopingAudio MediaPlayer ERROR: what=$what extra=$extra")
                     runCatching { p.reset(); p.release() }
                     mediaPlayers.remove(alarmId)
                     if (mediaPlayers.isEmpty()) {
@@ -584,7 +620,9 @@ class AlarmForegroundService : Service() {
             }
 
             mediaPlayers[alarmId] = player
-        }.onFailure { _ ->
+            Log.d("AlarmDiag", "startLoopingAudio SUCCESS: player assigned for alarmId=$alarmId")
+        }.onFailure { ex ->
+            Log.e("AlarmDiag", "startLoopingAudio FAILURE: ${ex.javaClass.simpleName}: ${ex.message}", ex)
             // MediaPlayer failed — release wake lock since no audio
             if (mediaPlayers.isEmpty()) {
                 releaseWakeLock()

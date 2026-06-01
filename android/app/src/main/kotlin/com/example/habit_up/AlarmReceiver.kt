@@ -11,6 +11,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
+import android.util.Log
 import org.json.JSONObject
 import java.util.Locale
 
@@ -82,8 +83,13 @@ class AlarmReceiver : BroadcastReceiver() {
     }
 
     override fun onReceive(context: Context, intent: Intent) {
-        val payloadJson = intent.getStringExtra(EXTRA_PAYLOAD_JSON)
-            ?: legacyPayload(intent)
+        Log.d("AlarmDiag", "--- onReceive ENTERED ---")
+        Log.d("AlarmDiag", "intent.action=" + intent.action +
+            " extras=" + intent.extras?.keySet()?.joinToString(","))
+        val directPayload = intent.getStringExtra(EXTRA_PAYLOAD_JSON)
+        val payloadJson = directPayload ?: legacyPayload(intent).also {
+            Log.w("AlarmDiag", "#0: EXTRA_PAYLOAD_JSON missing, using legacyPayload fallback")
+        }
 
         val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
         // ── Wake lock handoff ─────────────────────────────────────────────
@@ -170,9 +176,8 @@ class AlarmReceiver : BroadcastReceiver() {
             // playing (brief overlap) — the service's stopAllAudio() handles
             // cleanup by calling stopDirectAudio().
             AlarmForegroundService.start(context.applicationContext, payloadJson)
-        } catch (_: Exception) {
-            // Notification/service start may fail when phone is locked/Doze.
-            // This does NOT affect the next-day rescheduling below.
+        } catch (e: Exception) {
+            Log.e("AlarmDiag", "OUTER CATCH: ${e.javaClass.simpleName}: ${e.message}", e)
         }
 
         // ── Auto-reschedule bedtime alarm for the next day ───────────────
@@ -297,10 +302,19 @@ class AlarmReceiver : BroadcastReceiver() {
         stopDirectAudio()
 
         // ── Honor the alarm_sound_enabled preference ───────────────────
-        val prefs = context.getSharedPreferences("alarm_settings", Context.MODE_PRIVATE)
-        if (!prefs.getBoolean("alarm_sound_enabled", true)) return
+        Log.d("AlarmDiag", "playDirectAudio ENTERED")
 
-        val payload = runCatching { JSONObject(payloadJson) }.getOrNull() ?: return
+        val prefs = context.getSharedPreferences("alarm_settings", Context.MODE_PRIVATE)
+        if (!prefs.getBoolean("alarm_sound_enabled", true)) {
+            Log.w("AlarmDiag", "playDirectAudio EXIT #4: alarm_sound_enabled is false")
+            return
+        }
+
+        val payload = runCatching { JSONObject(payloadJson) }.getOrNull()
+        if (payload == null) {
+            Log.w("AlarmDiag", "playDirectAudio EXIT #5: invalid payload JSON, len=${payloadJson.length}")
+            return
+        }
 
         // ── Resolve the alarm sound URI ───────────────────────────────
         // Priority order:
@@ -325,7 +339,11 @@ class AlarmReceiver : BroadcastReceiver() {
                 ?: Settings.System.DEFAULT_ALARM_ALERT_URI
         }
 
-        if (alarmUri == Uri.EMPTY) return
+        if (alarmUri == Uri.EMPTY) {
+            Log.w("AlarmDiag", "playDirectAudio EXIT #6: alarmUri == Uri.EMPTY")
+            return
+        }
+        Log.d("AlarmDiag", "playDirectAudio: playing alarmUri=$alarmUri")
 
         // ── Create and start the MediaPlayer ─────────────────────────
         runCatching {
@@ -358,9 +376,9 @@ class AlarmReceiver : BroadcastReceiver() {
             // onReceive() returns. The player keeps running on a separate
             // thread managed by MediaPlayer internally.
             directAudioPlayer = player
-        }.onFailure { _ ->
-            // Failed to play audio directly — the foreground service
-            // is still attempted as a fallback.
+            Log.d("AlarmDiag", "playDirectAudio SUCCESS: player assigned")
+        }.onFailure { ex ->
+            Log.e("AlarmDiag", "playDirectAudio FAILURE #7: ex=${ex.message}", ex)
         }
     }
 }

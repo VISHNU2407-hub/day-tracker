@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import android.view.WindowInsets
 import android.view.WindowInsetsController
 import android.view.WindowManager
@@ -22,10 +23,33 @@ class AlarmActivity : FlutterActivity() {
     private var alarmChannel: MethodChannel? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        showOverLockScreen()
+        Log.d("AlarmDiag", "AlarmActivity: onCreate ENTERED, window==null=${window == null}, SDK_INT=${Build.VERSION.SDK_INT}")
+
         super.onCreate(savedInstanceState)
+        Log.d("AlarmDiag", "AlarmActivity: AFTER super.onCreate(), window==null=${window == null}")
+
+        Log.d("AlarmDiag", "AlarmActivity: BEFORE showOverLockScreen(), window==null=${window == null}")
+        showOverLockScreen()
+        Log.d("AlarmDiag", "AlarmActivity: AFTER showOverLockScreen(), window==null=${window == null}")
+
         initialPayload = intent?.getStringExtra(EXTRA_PAYLOAD_JSON)
             ?: AlarmPayloadStore.peek(applicationContext)
+        Log.d("AlarmDiag", "AlarmActivity: onCreate END, window==null=${window == null}, hasPayload=${initialPayload != null}")
+    }
+
+    override fun onResume() {
+        super.onResume()
+        Log.d("AlarmDiag", "AlarmActivity: onResume, window==null=${window == null}")
+    }
+
+    override fun onPause() {
+        super.onPause()
+        Log.d("AlarmDiag", "AlarmActivity: onPause, isFinishing=$isFinishing")
+    }
+
+    override fun onDestroy() {
+        Log.d("AlarmDiag", "AlarmActivity: onDestroy, isFinishing=$isFinishing")
+        super.onDestroy()
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -166,26 +190,28 @@ class AlarmActivity : FlutterActivity() {
             setTurnScreenOn(true)
         } else {
             @Suppress("DEPRECATION")
-            window.addFlags(
+            window?.addFlags(
                 WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
                     WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
             )
         }
-        window.addFlags(
+        window?.addFlags(
             WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or
                 WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD
         )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            window.insetsController?.let {
+            window?.insetsController?.let {
                 it.hide(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
                 it.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
             }
         } else {
             @Suppress("DEPRECATION")
-            window.decorView.systemUiVisibility =
-                android.view.View.SYSTEM_UI_FLAG_FULLSCREEN or
-                    android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
-                    android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+            window?.decorView?.let { decor ->
+                decor.systemUiVisibility =
+                    android.view.View.SYSTEM_UI_FLAG_FULLSCREEN or
+                        android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+                        android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+            }
         }
     }
 }
