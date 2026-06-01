@@ -68,21 +68,6 @@ class AlarmManagerService {
     }
   }
 
-  Future<void> snoozeAlarm({required String payload, int minutes = 5}) async {
-    try {
-      final nextPayload = await _channel.invokeMethod<String?>('snoozeAlarm', {
-        'payload': payload,
-        'minutes': minutes,
-      });
-      _currentPayload = nextPayload;
-      if (nextPayload != null) {
-        _payloadController.add(nextPayload);
-      }
-    } catch (e) {
-      debugPrint('[AlarmManagerService] snoozeAlarm failed: $e');
-    }
-  }
-
   Future<void> scheduleAlarm({
     required String payload,
     required int triggerAtMillis,

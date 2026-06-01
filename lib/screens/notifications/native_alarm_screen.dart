@@ -80,28 +80,6 @@ class _NativeAlarmScreenState extends State<NativeAlarmScreen> {
                 SizedBox(
                   width: double.infinity,
                   height: 56,
-                  child: ElevatedButton(
-                    onPressed: _onSnooze,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFFF6D00),
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: const Text(
-                      'Snooze (5 min)',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  height: 56,
                   child: OutlinedButton(
                     onPressed: _onDismiss,
                     style: OutlinedButton.styleFrom(
@@ -129,15 +107,6 @@ class _NativeAlarmScreenState extends State<NativeAlarmScreen> {
         ),
       ),
     );
-  }
-
-  Future<void> _onSnooze() async {
-    if (_currentPayload != null) {
-      await _alarmService.snoozeAlarm(payload: _currentPayload!);
-    }
-    if (mounted) {
-      Navigator.of(context).pop('snooze');
-    }
   }
 
   Future<void> _onDismiss() async {

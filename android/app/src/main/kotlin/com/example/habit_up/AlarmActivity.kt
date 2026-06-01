@@ -115,25 +115,6 @@ class AlarmActivity : FlutterActivity() {
                     AlarmForegroundService.stopAudio(applicationContext)
                     result.success(null)
                 }
-                "snoozeAlarm" -> {
-                    val payload = call.argument<String>("payload")
-                    val minutes = call.argument<Int>("minutes") ?: 5
-                    if (payload.isNullOrBlank()) {
-                        result.error("INVALID_ARGS", "payload is required", null)
-                    } else {
-                        val alarmId = extractAlarmId(payload)
-                        if (alarmId != null) {
-                            AlarmForegroundService.stopAudio(applicationContext, alarmId)
-                        } else {
-                            AlarmForegroundService.stopAudio(applicationContext)
-                        }
-                        AlarmPayloadStore.pop(applicationContext)
-                        val trigger = System.currentTimeMillis() + minutes * 60_000L
-                        AlarmScheduler.schedule(applicationContext, trigger, payload)
-                        val nextPayload = AlarmPayloadStore.peek(applicationContext)
-                        result.success(nextPayload)
-                    }
-                }
                 "scheduleAlarmPayload" -> {
                     val payload = call.argument<String>("payload")
                     val triggerAtMillis = call.argument<Long>("triggerAtMillis") ?: 0L
