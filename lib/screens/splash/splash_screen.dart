@@ -277,31 +277,22 @@ class _SplashScreenState extends State<SplashScreen>
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // "MADE WITH ♥ BY" (heart in purple)
-        Text.rich(
-          TextSpan(
-            style: TextStyle(
-              fontFamily: AppTextStyles.fontFamily,
-              fontSize: 10,
-              fontWeight: FontWeight.w500,
-              color: AppColors.textSecondary.withValues(alpha: 0.45),
-              letterSpacing: 2.0,
-              height: 1.3,
-            ),
-            children: [
-              const TextSpan(text: 'MADE WITH '),
-              TextSpan(
-                text: '♥',
-                style: TextStyle(color: AppColors.neonPink),
-              ),
-              const TextSpan(text: ' BY'),
-            ],
+        // "Made with 💜"
+        Text(
+          'Made with \u{1F49C}',
+          style: TextStyle(
+            fontFamily: AppTextStyles.fontFamily,
+            fontSize: 10,
+            fontWeight: FontWeight.w500,
+            color: AppColors.textSecondary.withValues(alpha: 0.45),
+            letterSpacing: 2.0,
+            height: 1.3,
           ),
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 6),
 
-        // "A PRODUCT BY VerSo"
+        // "A product by VerSo" — "VerSo" in sky blue
         Text.rich(
           TextSpan(
             style: TextStyle(
@@ -313,7 +304,7 @@ class _SplashScreenState extends State<SplashScreen>
               height: 1.3,
             ),
             children: [
-              const TextSpan(text: 'A PRODUCT BY '),
+              const TextSpan(text: 'A product by '),
               TextSpan(
                 text: 'VerSo',
                 style: TextStyle(color: AppColors.neonCyan),
@@ -321,17 +312,6 @@ class _SplashScreenState extends State<SplashScreen>
             ],
           ),
           textAlign: TextAlign.center,
-        ),
-
-        // Subtle decorative line
-        const SizedBox(height: 10),
-        SizedBox(
-          width: 40,
-          child: Divider(
-            color: AppColors.neonCyan.withValues(alpha: 0.2),
-            thickness: 0.5,
-            height: 0,
-          ),
         ),
       ],
     );
@@ -351,83 +331,74 @@ class _LoadingText extends StatefulWidget {
 
 class _LoadingTextState extends State<_LoadingText>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _pulseController;
-  late final Animation<double> _pulseAnimation;
+  late final AnimationController _dotController;
 
   @override
   void initState() {
     super.initState();
-    _pulseController = AnimationController(
+    // ~300ms per dot state × 4 states (0, 1, 2, 3 dots)
+    _dotController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1600),
+      duration: const Duration(milliseconds: 1200),
     );
-    _pulseAnimation = Tween<double>(begin: 0.4, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _pulseController,
-        curve: Curves.easeInOut,
-      ),
-    );
-    _pulseController.repeat(reverse: true);
+    _dotController.repeat();
   }
 
   @override
   void dispose() {
-    _pulseController.dispose();
+    _dotController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _pulseController,
-      builder: (context, child) {
-        return Opacity(
-          opacity: _pulseAnimation.value,
-          child: child,
-        );
-      },
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // ── "DAY TRACKER" hero branding — neon glow ────────────────
-          ShaderMask(
-            shaderCallback: (bounds) => LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                AppColors.neonCyan,
-                AppColors.neonGreen,
-              ],
-            ).createShader(bounds),
-            child: const Text(
-              'DAY TRACKER',
-              style: TextStyle(
-                fontFamily: AppTextStyles.fontFamily,
-                fontSize: 48,
-                fontWeight: FontWeight.w900,
-                color: Colors.white,
-                letterSpacing: 4.5,
-                height: 1.2,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ),
-          const SizedBox(height: 12),
-          // ── Loading subtitle ────────────────────────────────────────
-          const Text(
-            'Loading...',
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // ── "DAY TRACKER" hero branding — neon glow ────────────────
+        ShaderMask(
+          shaderCallback: (bounds) => LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              AppColors.neonCyan,
+              AppColors.neonGreen,
+            ],
+          ).createShader(bounds),
+          child: const Text(
+            'DAY TRACKER',
             style: TextStyle(
               fontFamily: AppTextStyles.fontFamily,
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-              color: AppColors.textSecondary,
-              letterSpacing: 1.2,
-              height: 1.3,
+              fontSize: 48,
+              fontWeight: FontWeight.w900,
+              color: Colors.white,
+              letterSpacing: 4.5,
+              height: 1.2,
             ),
             textAlign: TextAlign.center,
           ),
-        ],
-      ),
+        ),
+        const SizedBox(height: 12),
+        // ── Loading subtitle with animated dot progression ────────────
+        AnimatedBuilder(
+          animation: _dotController,
+          builder: (context, child) {
+            final dotCount = (_dotController.value * 4).floor() % 4;
+            return Text(
+              'Loading${'.' * dotCount}',
+              style: const TextStyle(
+                fontFamily: AppTextStyles.fontFamily,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: AppColors.textSecondary,
+                letterSpacing: 1.2,
+                height: 1.3,
+              ),
+              textAlign: TextAlign.center,
+            );
+          },
+        ),
+      ],
     );
   }
 }

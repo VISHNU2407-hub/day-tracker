@@ -98,9 +98,11 @@ class TaskCard extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: task.priority == TaskPriority.high
-              ? const Color(0x5CFF8B78)
-              : colorScheme.outline.withValues(alpha: 0.3),
+          color: task.isCompleted
+              ? AppColors.neonGreen.withValues(alpha: 0.5)
+              : task.priority == TaskPriority.high
+                  ? const Color(0x5CFF8B78)
+                  : colorScheme.outline.withValues(alpha: 0.3),
         ),
         color: colorScheme.surface,
       ),

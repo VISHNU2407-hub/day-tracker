@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:habit_up/providers/task_provider.dart';
-import 'package:habit_up/providers/theme_mode_provider.dart';
+
 import 'package:habit_up/providers/user_provider.dart';
 import 'package:habit_up/screens/profile/widgets/achievement_badge.dart';
 import 'package:habit_up/screens/profile/widgets/avatar_options.dart';
@@ -14,6 +14,7 @@ import 'package:habit_up/screens/profile/widgets/settings_tile.dart';
 import 'package:habit_up/services/alarm_sound_service.dart';
 import 'package:habit_up/services/bedtime_alarm_scheduler.dart';
 import 'package:habit_up/screens/profile/widgets/alarm_permissions_dialog.dart';
+import 'package:habit_up/screens/profile/widgets/permissions_device_setup_screen.dart';
 import 'package:habit_up/services/productivity_quality_service.dart';
 import 'package:habit_up/theme/app_colors.dart';
 import 'package:habit_up/theme/app_spacing.dart';
@@ -466,12 +467,19 @@ class _SettingsSection extends StatelessWidget {
         ),
         const SizedBox(height: 6),
         SettingsTile(
-          icon: Icons.palette_outlined,
-          title: 'Appearance',
-          subtitle: 'Theme & display options',
-          onTap: () => _showAppearanceSettings(context),
+          icon: Icons.security_rounded,
+          title: 'Permissions & Device Setup',
+          subtitle: 'Alarm permissions, battery optimization & auto-start',
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const PermissionsDeviceSetupScreen(),
+              ),
+            );
+          },
         ),
         const SizedBox(height: 6),
+
         _AlarmSoundSettingsTile(),
         const SizedBox(height: 6),
         _AboutAppTile(),
@@ -674,9 +682,7 @@ class _AlarmSoundSettingsTileState extends State<_AlarmSoundSettingsTile> {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
-      barrierColor: Theme.of(context).brightness == Brightness.light
-        ? Colors.black.withValues(alpha: 0.15)
-        : Colors.black54,
+      barrierColor: Colors.black54,
       builder: (ctx) {
         return Container(
           decoration: const BoxDecoration(
@@ -969,9 +975,7 @@ Future<void> _showEditProfileDialog(BuildContext context) async {
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
-    barrierColor: Theme.of(context).brightness == Brightness.light
-        ? Colors.black.withValues(alpha: 0.15)
-        : Colors.black54,
+    barrierColor: Colors.black54,
     builder: (ctx) {
       return StatefulBuilder(
         builder: (ctx, setSheetState) {
@@ -1413,302 +1417,4 @@ Future<void> _showEditProfileDialog(BuildContext context) async {
 Future<void> _showAlarmPermissionsDialog(BuildContext context) async {
   await showAlarmPermissionsDialog(context);
 }
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// Appearance Settings Sheet
-// ═══════════════════════════════════════════════════════════════════════════════
-
-/// Shows a bottom sheet with theme switching options.
-void _showAppearanceSettings(BuildContext context) {
-  final container = ProviderScope.containerOf(context);
-
-  showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: false,
-    backgroundColor: Colors.transparent,
-    barrierColor: Theme.of(context).brightness == Brightness.light
-        ? Colors.black.withValues(alpha: 0.15)
-        : Colors.black54,
-    builder: (ctx) {
-      return StatefulBuilder(
-        builder: (ctx, setSheetState) {
-          final theme = Theme.of(ctx);
-          final colorScheme = theme.colorScheme;
-          var selectedMode =
-              container.read(themeModeProvider);
-
-          return Container(
-            decoration: BoxDecoration(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-              color: colorScheme.surface,
-            ),
-            child: SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.lg,
-                  AppSpacing.lg,
-                  AppSpacing.lg,
-                  AppSpacing.lg,
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Handle bar
-                    Center(
-                      child: Container(
-                        width: 36,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(2),
-                          color: colorScheme.onSurfaceVariant.withValues(alpha: 0.2),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.palette_outlined,
-                          size: 22,
-                          color: AppColors.neonCyan,
-                        ),
-                        const SizedBox(width: 10),
-                        Text(
-                          'Appearance',
-                          style: TextStyle(
-                            fontFamily: AppTextStyles.fontFamily,
-                            fontSize: 20,
-                            fontWeight: FontWeight.w700,
-                            color: colorScheme.onSurface,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Choose your preferred theme',
-                      style: TextStyle(
-                        fontFamily: AppTextStyles.fontFamily,
-                        fontSize: 13,
-                        color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.lg),
-
-                    // Theme mode options
-                    _ThemeOptionTile(
-                      icon: Icons.dark_mode_rounded,
-                      title: 'Dark',
-                      subtitle: 'Easy on the eyes, day & night',
-                      isSelected: selectedMode == ThemeMode.dark,
-                      iconColor: const Color(0xFF6C5CE7),
-                      onTap: () {
-                        setSheetState(() {
-                          selectedMode = ThemeMode.dark;
-                        });
-                        container
-                            .read(themeModeProvider.notifier)
-                            .setThemeMode(ThemeMode.dark);
-                        _persistThemePreference(context, ThemeMode.dark);
-                      },
-                    ),
-                    const SizedBox(height: 8),
-                    _ThemeOptionTile(
-                      icon: Icons.light_mode_rounded,
-                      title: 'Light',
-                      subtitle: 'Bright and clean interface',
-                      isSelected: selectedMode == ThemeMode.light,
-                      iconColor: const Color(0xFFFFC857),
-                      onTap: () {
-                        setSheetState(() {
-                          selectedMode = ThemeMode.light;
-                        });
-                        container
-                            .read(themeModeProvider.notifier)
-                            .setThemeMode(ThemeMode.light);
-                        _persistThemePreference(context, ThemeMode.light);
-                      },
-                    ),
-                    const SizedBox(height: 8),
-                    _ThemeOptionTile(
-                      icon: Icons.settings_brightness_rounded,
-                      title: 'System',
-                      subtitle: 'Follow your device theme',
-                      isSelected: selectedMode == ThemeMode.system,
-                      iconColor: AppColors.neonCyan,
-                      onTap: () {
-                        setSheetState(() {
-                          selectedMode = ThemeMode.system;
-                        });
-                        container
-                            .read(themeModeProvider.notifier)
-                            .setThemeMode(ThemeMode.system);
-                        _persistThemePreference(context, ThemeMode.system);
-                      },
-                    ),
-                    const SizedBox(height: AppSpacing.lg),
-
-                    // Close button
-                    SizedBox(
-                      width: double.infinity,
-                      height: 50,
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.of(ctx).pop(),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: colorScheme.onSurfaceVariant,
-                          side: BorderSide(color: colorScheme.outline),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                        ),
-                        child: Text(
-                          'Done',
-                          style: TextStyle(
-                            fontFamily: AppTextStyles.fontFamily,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 16,
-                            color: colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
-      );
-    },
-  );
-}
-
-/// Persists the selected [themeMode] to the user's preferences.
-Future<void> _persistThemePreference(
-  BuildContext context,
-  ThemeMode themeMode,
-) async {
-  try {
-    final container = ProviderScope.containerOf(context);
-    final userAsync = container.read(userProvider);
-    final user = userAsync.valueOrNull;
-    if (user == null) return;
-
-    final updatedPrefs = Map<String, dynamic>.from(user.preferences)
-      ..[themeModePrefKey] = themeModeToString(themeMode);
-
-    await container
-        .read(userProvider.notifier)
-        .updatePreferences(updatedPrefs);
-  } catch (_) {
-    // Silently fail — the in-memory setting is already applied.
-  }
-}
-
-/// A selectable option tile used in the Appearance settings sheet.
-class _ThemeOptionTile extends StatelessWidget {
-  const _ThemeOptionTile({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.isSelected,
-    required this.iconColor,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final bool isSelected;
-  final Color iconColor;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final textTheme = theme.textTheme;
-    final colorScheme = theme.colorScheme;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.all(AppSpacing.md),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isSelected
-                ? iconColor.withValues(alpha: 0.5)
-                : colorScheme.outline.withValues(alpha: 0.3),
-            width: isSelected ? 1.5 : 1.0,
-          ),
-          color: isSelected
-              ? iconColor.withValues(alpha: 0.06)
-              : Colors.transparent,
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: iconColor.withValues(alpha: 0.1),
-                border: Border.all(
-                  color: iconColor.withValues(alpha: 0.2),
-                ),
-              ),
-              alignment: Alignment.center,
-              child: Icon(icon, size: 20, color: iconColor),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: isSelected
-                          ? iconColor
-                          : colorScheme.onSurface,
-                      fontSize: 15,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: textTheme.bodySmall?.copyWith(
-                      color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            if (isSelected)
-              Container(
-                width: 24,
-                height: 24,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: iconColor.withValues(alpha: 0.15),
-                  border: Border.all(color: iconColor, width: 1.5),
-                ),
-                alignment: Alignment.center,
-                child: Icon(
-                  Icons.check_rounded,
-                  size: 14,
-                  color: iconColor,
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 

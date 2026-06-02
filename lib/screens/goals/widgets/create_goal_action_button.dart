@@ -22,7 +22,6 @@ class CreateGoalActionButton extends StatelessWidget {
           elevation: 0,
           padding: const EdgeInsets.symmetric(horizontal: 24),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          side: const BorderSide(color: Color(0x664D7CFF)),
           backgroundColor: Colors.transparent,
         ).copyWith(
           backgroundColor: const WidgetStatePropertyAll<Color>(AppColors.transparent),
@@ -40,14 +39,6 @@ class CreateGoalActionButton extends StatelessWidget {
                 Color(0xFF2A46CC),
               ],
             ),
-            boxShadow: <BoxShadow>[
-              BoxShadow(
-                color: Color(0x2A00E5FF),
-                blurRadius: 12,
-                spreadRadius: -8.5,
-                offset: Offset(0, 5),
-              ),
-            ],
           ),
           child: Center(
             child: Text(

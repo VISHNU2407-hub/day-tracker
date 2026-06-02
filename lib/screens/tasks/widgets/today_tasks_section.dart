@@ -569,7 +569,8 @@ class _TodayTasksSectionState extends State<TodayTasksSection> {
     final viewModels = todayTasks
         .map((t) => TodayTaskViewModel.fromTaskModel(t))
         .toList();
-    final completedCount = viewModels.where((t) => t.isCompleted).length;
+    final todoTasks = viewModels.where((t) => !t.isCompleted).toList();
+    final completedTasks = viewModels.where((t) => t.isCompleted).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -578,17 +579,23 @@ class _TodayTasksSectionState extends State<TodayTasksSection> {
           delay: const Duration(milliseconds: 100),
           offset: 8,
           child: _TodayTasksHeader(
-            completedCount: completedCount,
+            completedCount: completedTasks.length,
             totalCount: viewModels.length,
             onAddTask: () => _showCreateTaskDialog(context, taskProvider),
           ),
         ),
         AppGaps.v8,
-        if (viewModels.isNotEmpty)
-          ...viewModels.asMap().entries.map((entry) {
+        if (todoTasks.isNotEmpty) ...[
+          _SectionHeader(
+            icon: Icons.checklist_rounded,
+            title: 'To Do',
+            count: todoTasks.length,
+          ),
+          AppGaps.v6,
+          ...todoTasks.asMap().entries.map((entry) {
             final index = entry.key;
             final taskVm = entry.value;
-            final taskModel = todayTasks[index];
+            final taskModel = todayTasks.firstWhere((t) => t.id == taskVm.id);
             return FadeInUp(
               delay: Duration(milliseconds: 60 * index),
               offset: 10,
@@ -615,9 +622,97 @@ class _TodayTasksSectionState extends State<TodayTasksSection> {
                 ),
               ),
             );
-          })
-        else
+          }),
+          AppGaps.v12,
+        ],
+        if (completedTasks.isNotEmpty) ...[
+          _SectionHeader(
+            icon: Icons.check_circle_rounded,
+            title: 'Completed',
+            count: completedTasks.length,
+          ),
+          AppGaps.v6,
+          ...completedTasks.asMap().entries.map((entry) {
+            final index = entry.key;
+            final taskVm = entry.value;
+            final taskModel = todayTasks.firstWhere((t) => t.id == taskVm.id);
+            return FadeInUp(
+              delay: Duration(milliseconds: 60 * index),
+              offset: 10,
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: RepaintBoundary(
+                  child: TaskCard(
+                    task: taskVm,
+                    onToggle: () {
+                      taskProvider.toggleTaskCompletion(taskVm.id);
+                    },
+                    onEdit: () =>
+                        _showEditTaskDialog(context, taskModel, taskProvider),
+                    onDelete: () =>
+                        _confirmDeleteTask(context, taskModel, taskProvider),
+                    onPushBackToGoal: () => _showPushBackToGoalDialog(
+                      context,
+                      taskModel,
+                      taskProvider,
+                      goalProvider,
+                      subGoalProvider,
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }),
+        ],
+        if (viewModels.isEmpty)
           const _TodayTasksEmptyState(),
+      ],
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({
+    required this.icon,
+    required this.title,
+    required this.count,
+  });
+
+  final IconData icon;
+  final String title;
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: colorScheme.primary),
+        AppGaps.h6,
+        Text(
+          title,
+          style: textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.w700,
+            fontSize: 13,
+          ),
+        ),
+        const Spacer(),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(99),
+            color: colorScheme.primary.withValues(alpha: 0.1),
+          ),
+          child: Text(
+            '$count',
+            style: TextStyle(
+              color: colorScheme.primary,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
       ],
     );
   }

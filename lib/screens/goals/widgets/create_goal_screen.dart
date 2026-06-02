@@ -5,8 +5,6 @@ import 'package:habit_up/screens/goals/widgets/futuristic_input_field.dart';
 import 'package:habit_up/screens/goals/widgets/goal_accent_selector.dart';
 import 'package:habit_up/screens/goals/widgets/goal_accent.dart';
 import 'package:habit_up/screens/goals/widgets/goal_category_selector.dart';
-import 'package:habit_up/screens/goals/widgets/goal_difficulty_selector.dart';
-import 'package:habit_up/screens/goals/widgets/goal_timeline_selector.dart';
 import 'package:habit_up/theme/app_colors.dart';
 import 'package:habit_up/theme/app_spacing.dart';
 import 'package:provider/provider.dart';
@@ -22,9 +20,7 @@ class _CreateGoalScreenState extends State<CreateGoalScreen> {
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
   GoalCategory _category = GoalCategory.productivity;
-  GoalDifficulty _difficulty = GoalDifficulty.medium;
   GoalAccent _accent = GoalAccent.purple;
-  GoalTimeline _timeline = GoalTimeline.weekly;
   bool _isCreating = false;
 
   @override
@@ -55,7 +51,6 @@ class _CreateGoalScreenState extends State<CreateGoalScreen> {
         description: _descriptionController.text.trim(),
         colorHex: colorHex,
         themeKey: _category.name,
-        motivationalSubtitle: '${_difficulty.label} \u2022 ${_timeline.label}',
       );
 
       if (mounted) {
@@ -120,19 +115,9 @@ class _CreateGoalScreenState extends State<CreateGoalScreen> {
                   onChanged: (value) => setState(() => _category = value),
                 ),
                 const SizedBox(height: AppSpacing.xs),
-                GoalDifficultySelector(
-                  value: _difficulty,
-                  onChanged: (value) => setState(() => _difficulty = value),
-                ),
-                const SizedBox(height: AppSpacing.xs),
                 GoalAccentSelector(
                   value: _accent,
                   onChanged: (value) => setState(() => _accent = value),
-                ),
-                const SizedBox(height: AppSpacing.xs),
-                GoalTimelineSelector(
-                  value: _timeline,
-                  onChanged: (value) => setState(() => _timeline = value),
                 ),
                 const SizedBox(height: AppSpacing.md),
                 CreateGoalActionButton(

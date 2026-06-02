@@ -3,13 +3,10 @@ import 'dart:ui' show PlatformDispatcher;
 
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:habit_up/models/user_model.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';import 'package:habit_up/models/user_model.dart';
 import 'package:habit_up/providers/goal_provider.dart';
 import 'package:habit_up/providers/sub_goal_provider.dart';
 import 'package:habit_up/providers/task_provider.dart';
-import 'package:habit_up/providers/theme_mode_provider.dart';
-import 'package:habit_up/providers/user_provider.dart';
 import 'package:habit_up/routes/app_router.dart';
 import 'package:habit_up/routes/app_routes.dart';
 import 'package:habit_up/screens/splash/splash_screen.dart';
@@ -196,55 +193,13 @@ class HabitUpApp extends ConsumerStatefulWidget {
 }
 
 class _HabitUpAppState extends ConsumerState<HabitUpApp> {
-  bool _themeInitialized = false;
-
-  @override
-  void initState() {
-    super.initState();
-    // Schedule theme initialization after the first frame so the user
-    // provider has a chance to load its persisted data.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _applyPersistedTheme();
-    });
-  }
-
-  Future<void> _applyPersistedTheme() async {
-    final userAsync = ref.read(userProvider);
-    final user = userAsync.valueOrNull;
-    if (user == null) {
-      // User data not loaded yet — listen for the first successful load.
-      ref.listen(userProvider, (previous, next) {
-        if (!_themeInitialized && next.valueOrNull != null) {
-          _themeInitialized = true;
-          _applyFromUser(next.valueOrNull!);
-        }
-      });
-      return;
-    }
-    _themeInitialized = true;
-    _applyFromUser(user);
-  }
-
-  void _applyFromUser(UserModel user) {
-    final stored = user.preferences[themeModePrefKey] as String?;
-    if (stored != null) {
-      final mode = themeModeFromString(stored);
-      ref.read(themeModeProvider.notifier).setThemeMode(mode);
-    }
-    _themeInitialized = true;
-  }
-
   @override
   Widget build(BuildContext context) {
-    final themeMode = ref.watch(themeModeProvider);
-
     return MaterialApp(
       navigatorKey: widget.navigatorKey,
       debugShowCheckedModeBanner: false,
       title: 'Habit Up',
-      theme: AppTheme.light,
-      darkTheme: AppTheme.dark,
-      themeMode: themeMode,
+      theme: AppTheme.dark, // Always dark mode
       home: SplashScreen(
         progress: widget.splashProgress,
         onTransitionComplete: widget.onSplashTransitionComplete,
