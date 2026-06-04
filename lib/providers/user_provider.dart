@@ -81,14 +81,24 @@ class UserNotifier extends AsyncNotifier<UserModel?> {
   }
 
   Future<void> _runAndRefresh(Future<dynamic> Function() action) async {
+    // Phase 1: Persist the data. If this fails, keep the current state.
     final previousState = state;
     try {
       await action();
+    } catch (_) {
+      state = previousState;
+      return;
+    }
+
+    // Phase 2: Re-read from storage to refresh state.
+    // If the persist succeeded, previousState is definitively stale,
+    // so never fall back to it here.
+    try {
       state = AsyncValue<UserModel?>.data(
         await _userStorageService.getCurrentUser(),
       );
     } catch (_) {
-      state = previousState;
+      state = const AsyncValue.loading();
     }
   }
 }

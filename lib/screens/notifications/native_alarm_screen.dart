@@ -43,6 +43,7 @@ class _NativeAlarmScreenState extends State<NativeAlarmScreen> {
   @override
   Widget build(BuildContext context) {
     final payloadData = _getPayloadData();
+    final isBedtime = payloadData?['type'] == 'bedtime';
     final title = payloadData?['taskName'] as String? ?? 'Alarm';
     final description = payloadData?['description'] as String? ?? 'Alarm is ringing';
 
@@ -79,29 +80,35 @@ class _NativeAlarmScreenState extends State<NativeAlarmScreen> {
                   ),
                   textAlign: TextAlign.center,
                 ),
-                const SizedBox(height: 64),
-                SizedBox(
-                  width: double.infinity,
-                  height: 56,
-                  child: ElevatedButton(
-                    onPressed: _onReschedule,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFFF6D00),
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                // Reschedule button — shown only for task alarms.
+                // Bedtime alarms are not backed by a TaskModel, so Reschedule
+                // is not supported (getTaskById('bedtime') returns null).
+                if (!isBedtime) ...[
+                  const SizedBox(height: 64),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 56,
+                    child: ElevatedButton(
+                      onPressed: _onReschedule,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFFF6D00),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
-                    ),
-                    child: const Text(
-                      'Reschedule',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
+                      child: const Text(
+                        'Reschedule',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 16),
+                  const SizedBox(height: 16),
+                ],
+                if (isBedtime) const SizedBox(height: 64),
                 SizedBox(
                   width: double.infinity,
                   height: 56,

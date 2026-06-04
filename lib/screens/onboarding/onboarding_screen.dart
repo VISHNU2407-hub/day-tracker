@@ -236,6 +236,89 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 // Section Widgets
 // ═══════════════════════════════════════════════════════════════════════════════
 
+/// Pulsing logo with a subtle breathing scale animation.
+class _PulsingLogo extends StatefulWidget {
+  const _PulsingLogo();
+
+  @override
+  State<_PulsingLogo> createState() => _PulsingLogoState();
+}
+
+class _PulsingLogoState extends State<_PulsingLogo>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _scaleAnimation;
+  late final Animation<double> _glowAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2200),
+    )..repeat(reverse: true);
+
+    final curved = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeInOut,
+    );
+
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 1.05).animate(curved);
+    _glowAnimation = Tween<double>(begin: 0.08, end: 0.38).animate(curved);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _scaleAnimation,
+      builder: (context, child) {
+        final glow = _glowAnimation.value;
+        return Transform.scale(
+          scale: _scaleAnimation.value,
+          child: Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: <Color>[Color(0x3300E5FF), Color(0x1A004D7C)],
+              ),
+              border: Border.all(
+                color: AppColors.neonCyan.withValues(alpha: glow),
+                width: 1.5,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.neonCyan.withValues(alpha: glow * 0.45),
+                  blurRadius: 24,
+                  spreadRadius: -2,
+                ),
+              ],
+            ),
+            alignment: Alignment.center,
+            child: ClipOval(
+              child: Image.asset(
+                'assets/icon/app_icon.png',
+                width: 80,
+                height: 80,
+                fit: BoxFit.cover,
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
 /// Welcome header with logo and tagline.
 class _WelcomeHeader extends StatelessWidget {
   @override
@@ -243,36 +326,8 @@ class _WelcomeHeader extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Premium rocket logo
-        Container(
-          width: 80,
-          height: 80,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: <Color>[Color(0x3300E5FF), Color(0x1A004D7C)],
-            ),
-            border: Border.all(
-              color: AppColors.neonCyan.withValues(alpha: 0.25),
-              width: 1.5,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.neonCyan.withValues(alpha: 0.10),
-                blurRadius: 24,
-                spreadRadius: -4,
-              ),
-            ],
-          ),
-          alignment: Alignment.center,
-          child: const Icon(
-            Icons.rocket_launch_rounded,
-            size: 36,
-            color: AppColors.neonCyan,
-          ),
-        ),
+        // App logo with subtle pulse
+        const _PulsingLogo(),
         const SizedBox(height: AppSpacing.lg),
         // Title
         const Text(

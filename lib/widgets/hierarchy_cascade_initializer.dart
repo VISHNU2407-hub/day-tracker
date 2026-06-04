@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:habit_up/providers/goal_provider.dart';
 import 'package:habit_up/providers/sub_goal_provider.dart';
 import 'package:habit_up/providers/task_provider.dart';
+import 'package:habit_up/services/achievement_service.dart';
 import 'package:habit_up/services/alarm_manager_service.dart';
 import 'package:habit_up/services/hierarchy_cascade_service.dart';
 import 'package:habit_up/services/user_storage_service.dart';
@@ -9,15 +10,16 @@ import 'package:habit_up/services/xp_streak_service.dart';
 import 'package:habit_up/storage/hive_bootstrap.dart';
 import 'package:provider/provider.dart' as provider_pkg;
 
-/// Thin, non-visual widget that initialises the [HierarchyCascadeService]
-/// and the [XpStreakService] after all ChangeNotifier providers are available
-/// in the widget tree.
+/// Thin, non-visual widget that initialises the [HierarchyCascadeService],
+/// [XpStreakService], and [AchievementService] after all ChangeNotifier
+/// providers are available in the widget tree.
 ///
 /// Must be placed as a descendant of the [MultiProvider] that provides
 /// [TaskProvider], [SubGoalProvider], and [GoalProvider].
 ///
-/// Also provides [XpStreakService] as a [ChangeNotifierProvider] so widgets
-/// throughout the app can watch XP, streak, and momentum state.
+/// Also provides [XpStreakService] and [AchievementService] as
+/// [ChangeNotifierProvider]s so widgets throughout the app can watch
+/// XP, streak, momentum, and achievement state.
 class HierarchyCascadeInitializer extends StatefulWidget {
   const HierarchyCascadeInitializer({required this.child, super.key});
 
@@ -34,6 +36,9 @@ class _HierarchyCascadeInitializerState
   /// widget tree from the first frame. Initialization happens in the
   /// post-frame callback and will notify listeners when done.
   late final XpStreakService _xpStreakService;
+
+  /// Created alongside XP service so achievements can watch source data.
+  late final AchievementService _achievementService;
 
   /// Cached provider references captured synchronously in [initState] so they
   /// can be used safely after async gaps without triggering
@@ -57,6 +62,12 @@ class _HierarchyCascadeInitializerState
       userStorageService: const UserStorageService(),
     );
 
+    _achievementService = AchievementService(
+      taskProvider: _taskProvider,
+      goalProvider: _goalProvider,
+      xpStreakService: _xpStreakService,
+    );
+
     // Initialize and wire services asynchronously.
     WidgetsBinding.instance.addPostFrameCallback((_) => _wireServices());
   }
@@ -65,6 +76,7 @@ class _HierarchyCascadeInitializerState
     if (!mounted) return;
 
     await _xpStreakService.initialize();
+    await _achievementService.initialize();
 
     // Wire the hierarchy cascade, passing XpStreakService so task
     // completion hooks also update XP and streaks at the user level.
@@ -98,10 +110,14 @@ class _HierarchyCascadeInitializerState
 
   @override
   Widget build(BuildContext context) {
-    // XpStreakService is ALWAYS provided — from the very first frame.
+    // XpStreakService and AchievementService are ALWAYS provided — from the
+    // very first frame.
     return provider_pkg.ChangeNotifierProvider<XpStreakService>.value(
       value: _xpStreakService,
-      child: widget.child,
+      child: provider_pkg.ChangeNotifierProvider<AchievementService>.value(
+        value: _achievementService,
+        child: widget.child,
+      ),
     );
   }
 }

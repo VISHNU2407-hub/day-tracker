@@ -90,6 +90,8 @@ class AchievementCategoryAdapter extends TypeAdapter<AchievementCategory> {
         return AchievementCategory.goalCompletion;
       case 4:
         return AchievementCategory.productivity;
+      case 5:
+        return AchievementCategory.task;
       default:
         return AchievementCategory.streak;
     }
@@ -112,6 +114,9 @@ class AchievementCategoryAdapter extends TypeAdapter<AchievementCategory> {
         break;
       case AchievementCategory.productivity:
         writer.writeByte(4);
+        break;
+      case AchievementCategory.task:
+        writer.writeByte(5);
         break;
     }
   }

@@ -15,6 +15,8 @@ enum AchievementCategory {
   goalCompletion,
   @HiveField(4)
   productivity,
+  @HiveField(5)
+  task,
 }
 
 @HiveType(typeId: 7)

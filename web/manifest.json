@@ -1,6 +1,6 @@
 {
-    "name": "habit_up",
-    "short_name": "habit_up",
+    "name": "Day Tracker",
+    "short_name": "Day Tracker",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

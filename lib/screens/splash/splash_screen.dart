@@ -9,10 +9,10 @@ import 'package:habit_up/theme/app_text_styles.dart';
 // ---------------------------------------------------------------------------
 //
 // Features:
-//   • Looping vertical hover float on the rocket icon (easeInOut, ~10px)
+//   • Slow breathing pulse on the app icon (scale 1.0 ↕ 1.05, easeInOut)
 //   • Tap-to-boost micro-interaction (quick jump up + elastic settle)
-//   • Branding below the rocket in a single centered Column:
-//     "MADE WITH ♥ BY" / "A PRODUCT BY DAY TRACKER"
+//   • Branding below the icon in a single centered Column:
+//     "Made with 💜" / "A product by Day Tracker"
 // ---------------------------------------------------------------------------
 
 class SplashScreen extends StatefulWidget {
@@ -31,9 +31,9 @@ class SplashScreen extends StatefulWidget {
 
 class _SplashScreenState extends State<SplashScreen>
     with TickerProviderStateMixin {
-  // ── Hover float animation ─────────────────────────────────────────────
-  late final AnimationController _hoverController;
-  late final Animation<double> _hoverAnimation;
+  // ── Pulse animation (slow breathing scale) ────────────────────────────
+  late final AnimationController _pulseController;
+  late final Animation<double> _pulseAnimation;
 
   // ── Tap boost animation ───────────────────────────────────────────────
   late final AnimationController _boostController;
@@ -50,18 +50,18 @@ class _SplashScreenState extends State<SplashScreen>
   void initState() {
     super.initState();
 
-    // ── Hover: continuous sine-like float ──
-    _hoverController = AnimationController(
+    // ── Pulse: slow breathing scale (1.0 ↔ 1.05) ──
+    _pulseController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 2400),
+      duration: const Duration(milliseconds: 2200),
     );
-    _hoverAnimation = Tween<double>(begin: -5.0, end: 5.0).animate(
+    _pulseAnimation = Tween<double>(begin: 1.0, end: 1.05).animate(
       CurvedAnimation(
-        parent: _hoverController,
+        parent: _pulseController,
         curve: Curves.easeInOut,
       ),
     );
-    _hoverController.repeat(reverse: true);
+    _pulseController.repeat(reverse: true);
 
     // ── Boost: quick upward jump then elastic settle ──
     _boostController = AnimationController(
@@ -139,7 +139,7 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   /// Triggers the boost micro-interaction.
-  void _onRocketTap() {
+  void _onLogoTap() {
     if (_boostController.isAnimating) return;
     _boostController.forward(from: 0.0);
   }
@@ -147,7 +147,7 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   void dispose() {
     widget.progress.removeListener(_onProgressChanged);
-    _hoverController.dispose();
+    _pulseController.dispose();
     _boostController.dispose();
     _transitionController.dispose();
     super.dispose();
@@ -186,7 +186,7 @@ class _SplashScreenState extends State<SplashScreen>
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        _buildAnimatedRocket(),
+                        _buildAnimatedLogo(),
                         const SizedBox(height: 40),
                         const _LoadingText(),
                         const SizedBox(height: 32),
@@ -204,26 +204,27 @@ class _SplashScreenState extends State<SplashScreen>
     );
   }
 
-  // ── Rocket ───────────────────────────────────────────────────────────
+  // ── Logo ──────────────────────────────────────────────────────────────
 
-  Widget _buildAnimatedRocket() {
+  Widget _buildAnimatedLogo() {
     return GestureDetector(
-      onTap: _onRocketTap,
+      onTap: _onLogoTap,
       behavior: HitTestBehavior.opaque,
       child: AnimatedBuilder(
-        animation: Listenable.merge([_hoverController, _boostController]),
+        animation: Listenable.merge([_pulseController, _boostController]),
         builder: (context, child) {
-          // Compose hover float + boost jump
-          final hoverOffset = _hoverAnimation.value;
+          // Compose pulse scale + boost jump
+          final pulseScale = _pulseAnimation.value;
           final boostOffset = _boostVerticalAnimation.value;
           final rotation = _boostRotationAnimation.value;
 
-          // Scale — subtle pulse during boost
+          // Scale — subtle pulse + boost bump
           final boostProgress = _boostController.value;
-          final scale = 1.0 + (boostProgress * 0.04 * (1.0 - boostProgress));
+          final boostScale = 1.0 + (boostProgress * 0.04 * (1.0 - boostProgress));
+          final scale = pulseScale * boostScale;
 
           return Transform.translate(
-            offset: Offset(0, hoverOffset + boostOffset),
+            offset: Offset(0, boostOffset),
             child: Transform.rotate(
               angle: rotation * math.pi,
               child: Transform.scale(
@@ -234,8 +235,8 @@ class _SplashScreenState extends State<SplashScreen>
           );
         },
         child: Container(
-          width: 96,
-          height: 96,
+          width: 104,
+          height: 104,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             gradient: const LinearGradient(
@@ -244,27 +245,30 @@ class _SplashScreenState extends State<SplashScreen>
               colors: <Color>[Color(0x3300E5FF), Color(0x1A004D7C)],
             ),
             border: Border.all(
-              color: AppColors.neonCyan.withValues(alpha: 0.35),
+              color: AppColors.neonCyan.withValues(alpha: 0.23),
               width: 1.5,
             ),
             boxShadow: [
               BoxShadow(
-                color: AppColors.neonCyan.withValues(alpha: 0.15),
+                color: AppColors.neonCyan.withValues(alpha: 0.09),
                 blurRadius: 24,
-                spreadRadius: -4,
+                spreadRadius: -2,
               ),
               BoxShadow(
-                color: AppColors.neonBlue.withValues(alpha: 0.1),
+                color: AppColors.neonBlue.withValues(alpha: 0.06),
                 blurRadius: 36,
                 spreadRadius: 2,
               ),
             ],
           ),
           alignment: Alignment.center,
-          child: const Icon(
-            Icons.rocket_launch_rounded,
-            size: 42,
-            color: AppColors.neonCyan,
+          child: ClipOval(
+            child: Image.asset(
+              'assets/icon/app_icon.png',
+              width: 104,
+              height: 104,
+              fit: BoxFit.cover,
+            ),
           ),
         ),
       ),
@@ -278,21 +282,31 @@ class _SplashScreenState extends State<SplashScreen>
       mainAxisSize: MainAxisSize.min,
       children: [
         // "Made with 💜"
-        Text(
-          'Made with \u{1F49C}',
-          style: TextStyle(
-            fontFamily: AppTextStyles.fontFamily,
-            fontSize: 10,
-            fontWeight: FontWeight.w500,
-            color: AppColors.textSecondary.withValues(alpha: 0.45),
-            letterSpacing: 2.0,
-            height: 1.3,
+        Text.rich(
+          TextSpan(
+            style: TextStyle(
+              fontFamily: AppTextStyles.fontFamily,
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              color: AppColors.textSecondary.withValues(alpha: 0.45),
+              letterSpacing: 2.0,
+              height: 1.3,
+            ),
+            children: [
+              const TextSpan(text: 'Made with '),
+              TextSpan(
+                text: '\u{1F49C}',
+                style: TextStyle(
+                  fontSize: 17,
+                ),
+              ),
+            ],
           ),
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 6),
 
-        // "A product by VerSo" — "VerSo" in sky blue
+        // "A product by VKS" — "VKS" in sky blue
         Text.rich(
           TextSpan(
             style: TextStyle(
@@ -306,7 +320,7 @@ class _SplashScreenState extends State<SplashScreen>
             children: [
               const TextSpan(text: 'A product by '),
               TextSpan(
-                text: 'VerSo',
+                text: 'VKS',
                 style: TextStyle(color: AppColors.neonCyan),
               ),
             ],
@@ -330,8 +344,9 @@ class _LoadingText extends StatefulWidget {
 }
 
 class _LoadingTextState extends State<_LoadingText>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late final AnimationController _dotController;
+  late final AnimationController _shimmerController;
 
   @override
   void initState() {
@@ -340,13 +355,19 @@ class _LoadingTextState extends State<_LoadingText>
     _dotController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1200),
-    );
-    _dotController.repeat();
+    )..repeat();
+
+    // Shimmer sweep — a highlight band glides left to right across the title
+    _shimmerController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2500),
+    )..repeat();
   }
 
   @override
   void dispose() {
     _dotController.dispose();
+    _shimmerController.dispose();
     super.dispose();
   }
 
@@ -355,28 +376,36 @@ class _LoadingTextState extends State<_LoadingText>
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // ── "DAY TRACKER" hero branding — neon glow ────────────────
-        ShaderMask(
-          shaderCallback: (bounds) => LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              AppColors.neonCyan,
-              AppColors.neonGreen,
-            ],
-          ).createShader(bounds),
-          child: const Text(
-            'DAY TRACKER',
-            style: TextStyle(
-              fontFamily: AppTextStyles.fontFamily,
-              fontSize: 48,
-              fontWeight: FontWeight.w900,
-              color: Colors.white,
-              letterSpacing: 4.5,
-              height: 1.2,
-            ),
-            textAlign: TextAlign.center,
-          ),
+        // ── "DAY TRACKER" hero branding — neon glow with shimmer ────
+        AnimatedBuilder(
+          animation: _shimmerController,
+          builder: (context, child) {
+            final shimmerT = _shimmerController.value;
+            return ShaderMask(
+              shaderCallback: (bounds) => LinearGradient(
+                begin: Alignment(-1.0 + shimmerT * 2.0, 0.0),
+                end: Alignment(1.0 + shimmerT * 2.0, 0.0),
+                colors: [
+                  AppColors.neonCyan,
+                  Colors.white,
+                  AppColors.neonGreen,
+                ],
+                stops: [0.0, 0.25, 1.0],
+              ).createShader(bounds),
+              child: const Text(
+                'DAY TRACKER',
+                style: TextStyle(
+                  fontFamily: AppTextStyles.fontFamily,
+                  fontSize: 42,
+                  fontWeight: FontWeight.w900,
+                  color: Colors.white,
+                  letterSpacing: 4.5,
+                  height: 1.2,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            );
+          },
         ),
         const SizedBox(height: 12),
         // ── Loading subtitle with animated dot progression ────────────

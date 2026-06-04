@@ -6,56 +6,24 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:habit_up/providers/task_provider.dart';
 
 import 'package:habit_up/providers/user_provider.dart';
+import 'package:habit_up/screens/profile/rewards_all_screen.dart';
 import 'package:habit_up/screens/profile/widgets/achievement_badge.dart';
 import 'package:habit_up/screens/profile/widgets/avatar_options.dart';
 import 'package:habit_up/screens/profile/widgets/profile_hero.dart';
-import 'package:habit_up/screens/profile/widgets/profile_stat_card.dart';
 import 'package:habit_up/screens/profile/widgets/settings_tile.dart';
+import 'package:habit_up/screens/profile/widgets/streak_calendar_card.dart';
+import 'package:habit_up/models/achievement_model.dart';
+import 'package:habit_up/services/achievement_service.dart';
 import 'package:habit_up/services/alarm_sound_service.dart';
 import 'package:habit_up/services/bedtime_alarm_scheduler.dart';
 import 'package:habit_up/screens/profile/widgets/alarm_permissions_dialog.dart';
 import 'package:habit_up/screens/profile/widgets/permissions_device_setup_screen.dart';
-import 'package:habit_up/services/productivity_quality_service.dart';
 import 'package:habit_up/theme/app_colors.dart';
 import 'package:habit_up/theme/app_spacing.dart';
 import 'package:habit_up/theme/app_text_styles.dart';
 import 'package:provider/provider.dart' as pkg;
 import 'package:file_picker/file_picker.dart';
 import 'package:habit_up/services/notification_permission_service.dart';
-
-// ─── Achievement Badge Presets ─────────────────────────────────────────────
-
-const List<_BadgePreset> _badgePresets = [
-  _BadgePreset(
-    icon: Icons.local_fire_department,
-    label: '7-Day',
-    color: Color(0xFFFF6B35),
-  ),
-  _BadgePreset(icon: Icons.whatshot, label: '30-Day', color: Color(0xFFE17055)),
-  _BadgePreset(
-    icon: Icons.auto_awesome,
-    label: '100 XP',
-    color: Color(0xFFFDCB6E),
-  ),
-  _BadgePreset(icon: Icons.star, label: '500 XP', color: Color(0xFF6C5CE7)),
-  _BadgePreset(
-    icon: Icons.military_tech,
-    label: 'Veteran',
-    color: Color(0xFF00B894),
-  ),
-  _BadgePreset(icon: Icons.diamond, label: 'Elite', color: Color(0xFF0984E3)),
-];
-
-class _BadgePreset {
-  const _BadgePreset({
-    required this.icon,
-    required this.label,
-    required this.color,
-  });
-  final IconData icon;
-  final String label;
-  final Color color;
-}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Profile Screen
@@ -93,9 +61,10 @@ class ProfileHubScreen extends ConsumerWidget {
                 ProfileHero(),
                 const SizedBox(height: AppSpacing.xs),
 
-                // ── 3. Compact Stats Row ────────────────────────────
-                _CompactStatsRow(
-                  streak: user?.currentStreak ?? 0,
+                // ── 3. Streak Calendar ───────────────────────────────
+                StreakCalendarCard(
+                  taskProvider: taskProvider,
+                  currentStreak: user?.currentStreak ?? 0,
                   level: user?.level ?? 1,
                   xp: user?.xp ?? 0,
                   taskCount: summary.todayCompletedCount,
@@ -103,15 +72,11 @@ class ProfileHubScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: AppSpacing.xs),
 
-                // ── 4. Progress Section ─────────────────────────────
-                _ProgressSection(taskProvider: taskProvider),
-                const SizedBox(height: AppSpacing.xs),
-
-                // ── 5. Rewards / Achievements Preview ───────────────
+                // ── 4. Rewards / Achievements Preview ───────────────
                 _AchievementsPreview(),
                 const SizedBox(height: AppSpacing.xs),
 
-                // ── 6. Settings Section ─────────────────────────────
+                // ── 5. Settings Section ─────────────────────────────
                 _SettingsSection(),
               ],
             ),
@@ -170,215 +135,72 @@ class _Header extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// 3. Compact Stats Row
-// ═══════════════════════════════════════════════════════════════════════════════
-
-class _CompactStatsRow extends StatelessWidget {
-  const _CompactStatsRow({
-    required this.streak,
-    required this.level,
-    required this.xp,
-    required this.taskCount,
-    required this.totalToday,
-  });
-
-  final int streak;
-  final int level;
-  final int xp;
-  final int taskCount;
-  final int totalToday;
-
-  @override
-  Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          ProfileStatCard(
-            icon: Icons.local_fire_department,
-            value: '$streak',
-            label: 'Streak',
-            iconColor: const Color(0xFFFF6B35),
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          ProfileStatCard(
-            icon: Icons.trending_up,
-            value: '$level',
-            label: 'Level',
-            iconColor: const Color(0xFF6C5CE7),
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          ProfileStatCard(
-            icon: Icons.auto_awesome,
-            value: '$xp',
-            label: 'XP',
-            iconColor: const Color(0xFFFDCB6E),
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          ProfileStatCard(
-            icon: Icons.check_circle_outline,
-            value: totalToday > 0 ? '$taskCount/$totalToday' : '$taskCount',
-            label: 'Done',
-            iconColor: const Color(0xFF00B894),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// 4. Progress Section
-// ═══════════════════════════════════════════════════════════════════════════════
-
-class _ProgressSection extends StatelessWidget {
-  const _ProgressSection({required this.taskProvider});
-
-  final TaskProvider taskProvider;
-
-  @override
-  Widget build(BuildContext context) {
-    final summary = taskProvider.dashboardSummary;
-    final completionRate = summary.todayCount > 0
-        ? (summary.todayCompletedCount / summary.todayCount * 100)
-              .toStringAsFixed(0)
-        : '0';
-    final productivityScore = _calculateProductivityScore(taskProvider);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _SectionTitle(title: 'Progress'),
-        const SizedBox(height: 8),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: [
-              SizedBox(
-                width: 100,
-                child: _ProgressMiniCard(
-                  icon: Icons.speed_rounded,
-                  label: 'Productivity',
-                  value: '${productivityScore.toStringAsFixed(0)}%',
-                  color: const Color(0xFF4D7CFF),
-                ),
-              ),
-              const SizedBox(width: 8),
-              SizedBox(
-                width: 100,
-                child: _ProgressMiniCard(
-                  icon: Icons.calendar_view_week_rounded,
-                  label: 'Today Tasks',
-                  value: '$completionRate%',
-                  color: const Color(0xFF00B894),
-                ),
-              ),
-              const SizedBox(width: 8),
-              SizedBox(
-                width: 100,
-                child: _ProgressMiniCard(
-                  icon: Icons.flag_rounded,
-                  label: 'Goals',
-                  value: '${summary.todayCount}',
-                  color: const Color(0xFF6C5CE7),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  double _calculateProductivityScore(TaskProvider taskProvider) {
-    try {
-      const qualityService = ProductivityQualityService();
-      return qualityService.calculateDailyProductivityScore(
-            DateTime.now(),
-            taskProvider,
-          ) *
-          100;
-    } catch (_) {
-      return 0.0;
-    }
-  }
-}
-
-class _ProgressMiniCard extends StatelessWidget {
-  const _ProgressMiniCard({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.color,
-  });
-
-  final IconData icon;
-  final String label;
-  final String value;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.sm),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(14),
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: <Color>[Color(0xFF11172B), Color(0xFF0D1320)],
-        ),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 28,
-            height: 28,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: color.withValues(alpha: 0.10),
-              border: Border.all(color: color.withValues(alpha: 0.2), width: 1),
-            ),
-            alignment: Alignment.center,
-            child: Icon(icon, size: 14, color: color),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            value,
-            style: TextStyle(
-              fontFamily: AppTextStyles.fontFamily,
-              fontSize: 15,
-              fontWeight: FontWeight.w800,
-              color: color,
-              letterSpacing: 0.2,
-            ),
-          ),
-          const SizedBox(height: 1),
-          Text(
-            label,
-            style: TextStyle(
-              fontFamily: AppTextStyles.fontFamily,
-              fontSize: 9,
-              fontWeight: FontWeight.w500,
-              color: AppColors.textSecondary.withValues(alpha: 0.6),
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
 // 5. Rewards / Achievements Preview
 // ═══════════════════════════════════════════════════════════════════════════════
 
-class _AchievementsPreview extends StatelessWidget {
-  const _AchievementsPreview();
+class _AchievementsPreview extends StatefulWidget {
+  @override
+  State<_AchievementsPreview> createState() => _AchievementsPreviewState();
+}
+
+class _AchievementsPreviewState extends State<_AchievementsPreview> {
+  List<AchievementViewModel> _previewItems = [];
+  bool _loading = true;
+  AchievementService? _cachedService;
+
+  @override
+  void initState() {
+    super.initState();
+    _cachedService = context.read<AchievementService>();
+    _cachedService!.addListener(_onChanged);
+    _refresh();
+  }
+
+  void _onChanged() {
+    _refresh();
+  }
+
+  Future<void> _refresh() async {
+    final svc = _cachedService;
+    if (svc == null) return;
+    final preview = await svc.getPreviewAchievements();
+    if (!mounted) return;
+    setState(() {
+      _previewItems = preview;
+      _loading = false;
+    });
+  }
+
+  IconData _iconForKey(String key) {
+    switch (key) {
+      case 'spark': return Icons.auto_awesome;
+      case 'whatshot': return Icons.whatshot;
+      case 'bolt': return Icons.bolt;
+      case 'military_tech': return Icons.military_tech;
+      case 'diamond': return Icons.diamond;
+      case 'check_circle': return Icons.check_circle;
+      case 'trending_up': return Icons.trending_up;
+      case 'star': return Icons.star;
+      case 'auto_awesome': return Icons.auto_awesome;
+      case 'emoji_events': return Icons.emoji_events;
+      case 'local_fire_department': return Icons.local_fire_department;
+      case 'flag': return Icons.flag;
+      case 'rocket_launch': return Icons.rocket_launch;
+      case 'checklist': return Icons.checklist;
+      default: return Icons.star;
+    }
+  }
+
+  Color _colorForCategory(AchievementCategory cat) {
+    switch (cat) {
+      case AchievementCategory.streak: return const Color(0xFFFF6B35);
+      case AchievementCategory.task: return const Color(0xFF00B894);
+      case AchievementCategory.xp: return const Color(0xFFFDCB6E);
+      case AchievementCategory.goalCompletion: return const Color(0xFF6C5CE7);
+      case AchievementCategory.monthly: return const Color(0xFF0984E3);
+      case AchievementCategory.productivity: return AppColors.neonCyan;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -387,14 +209,26 @@ class _AchievementsPreview extends StatelessWidget {
       children: [
         _SectionTitle(
           title: 'Rewards',
-          trailing: Text(
-            'View All',
-            style: TextStyle(
-              fontFamily: AppTextStyles.fontFamily,
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: AppColors.neonCyan.withValues(alpha: 0.75),
-              letterSpacing: 0.2,
+          trailing: GestureDetector(
+            onTap: () {
+              final svc = context.read<AchievementService>();
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => RewardsAllScreen(
+                    achievementService: svc,
+                  ),
+                ),
+              );
+            },
+            child: Text(
+              'View All',
+              style: TextStyle(
+                fontFamily: AppTextStyles.fontFamily,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: AppColors.neonCyan.withValues(alpha: 0.75),
+                letterSpacing: 0.2,
+              ),
             ),
           ),
         ),
@@ -411,30 +245,48 @@ class _AchievementsPreview extends StatelessWidget {
             ),
             border: Border.all(color: AppColors.border),
           ),
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: List.generate(_badgePresets.length, (index) {
-                final badge = _badgePresets[index];
-                return Padding(
-                  padding: EdgeInsets.only(
-                    right: index < _badgePresets.length - 1 ? 8 : 0,
+          child: _loading
+              ? const SizedBox(
+                  height: 64,
+                  child: Center(
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
                   ),
-                  child: AchievementBadge(
-                    icon: badge.icon,
-                    label: badge.label,
-                    isUnlocked:
-                        false, // TODO: Replace with real achievement logic
-                    color: badge.color,
+                )
+              : SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: List.generate(_previewItems.length, (index) {
+                      final vm = _previewItems[index];
+                      return Padding(
+                        padding: EdgeInsets.only(
+                          right:
+                              index < _previewItems.length - 1 ? 8 : 0,
+                        ),
+                        child: AchievementBadge(
+                          icon: _iconForKey(vm.iconKey),
+                          label: vm.title,
+                          isUnlocked: vm.isUnlocked,
+                          color: _colorForCategory(vm.category),
+                        ),
+                      );
+                    }),
                   ),
-                );
-              }),
-            ),
-          ),
+                ),
         ),
       ],
     );
+  }
+
+  @override
+  void dispose() {
+    _cachedService?.removeListener(_onChanged);
+    _cachedService = null;
+    super.dispose();
   }
 }
 
@@ -855,7 +707,7 @@ class _AboutAppTile extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      'A PRODUCT BY VerSo',
+                      'A PRODUCT BY VKS',
                       style: TextStyle(
                         fontFamily: AppTextStyles.fontFamily,
                         fontSize: 11,

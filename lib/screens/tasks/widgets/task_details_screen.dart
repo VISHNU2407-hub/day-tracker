@@ -2,14 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:habit_up/screens/tasks/widgets/task_details_actions_section.dart';
 import 'package:habit_up/screens/tasks/widgets/task_details_completion_section.dart';
 import 'package:habit_up/screens/tasks/widgets/task_details_fallback_panel.dart';
-import 'package:habit_up/screens/tasks/widgets/task_details_focus_section.dart';
 import 'package:habit_up/screens/tasks/widgets/task_details_models.dart';
-import 'package:habit_up/screens/tasks/widgets/task_details_notes_section.dart';
 import 'package:habit_up/screens/tasks/widgets/task_details_overview_card.dart';
 import 'package:habit_up/screens/tasks/widgets/task_details_reminder_section.dart';
-import 'package:habit_up/screens/tasks/widgets/task_details_rewards_section.dart';
 import 'package:habit_up/screens/tasks/widgets/task_details_surface.dart';
-import 'package:habit_up/screens/tasks/widgets/task_details_timeline_section.dart';
 import 'package:habit_up/theme/app_colors.dart';
 import 'package:habit_up/theme/app_spacing.dart';
 
@@ -37,7 +33,6 @@ class TaskDetailsScreen extends StatelessWidget {
 
   bool get _isCompleted => viewModel.status == TaskExecutionStatus.completed;
   bool get _hasReminder => viewModel.reminderLabel.trim().isNotEmpty;
-  bool get _hasSchedule => viewModel.timelineEvents.isNotEmpty;
 
   @override
   Widget build(BuildContext context) {
@@ -82,29 +77,6 @@ class TaskDetailsScreen extends StatelessWidget {
                     message:
                         'Add a reminder to protect execution timing for this task.',
                     icon: Icons.notifications_off_outlined,
-                  ),
-                const SizedBox(height: AppSpacing.sm),
-                TaskDetailsFocusSection(
-                  focusDurationLabel: viewModel.focusDurationLabel,
-                  focusStreakDays: viewModel.focusStreakDays,
-                  intensityLabel: viewModel.intensityLabel,
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                TaskDetailsNotesSection(notes: viewModel.description),
-                const SizedBox(height: AppSpacing.sm),
-                TaskDetailsRewardsSection(
-                  xpReward: viewModel.xpReward,
-                  streakBonusXp: viewModel.streakBonusXp,
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                if (_hasSchedule)
-                  TaskDetailsTimelineSection(events: viewModel.timelineEvents)
-                else
-                  const TaskDetailsFallbackPanel(
-                    title: 'No schedule blocks',
-                    message:
-                        'Create work blocks to reduce drift and improve completion reliability.',
-                    icon: Icons.timeline_outlined,
                   ),
                 const SizedBox(height: AppSpacing.sm),
                 TaskDetailsSurface(

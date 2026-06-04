@@ -76,7 +76,7 @@ class _GoalsMainPageState extends State<GoalsMainPage> {
                       ),
                       AppGaps.v4,
                       Text(
-                        _loaded ? _userName : '...',
+                        '${_loaded ? _userName : '...'}, ${greeting.emoji}',
                         style: textTheme.textTheme.headlineSmall?.copyWith(
                           fontWeight: FontWeight.w800,
                           height: 1.05,
@@ -270,13 +270,19 @@ class _GoalsEmptyState extends StatelessWidget {
 }
 
 class _GreetingMeta {
-  const _GreetingMeta(this.salutation);
+  const _GreetingMeta({required this.salutation, required this.emoji});
+
   final String salutation;
+  final String emoji;
 
   static _GreetingMeta fromHour(int hour) {
-    if (hour < 12) return const _GreetingMeta('Good Morning');
-    if (hour < 18) return const _GreetingMeta('Good Afternoon');
-    return const _GreetingMeta('Good Evening');
+    if (hour < 12) {
+      return const _GreetingMeta(salutation: 'Good Morning', emoji: '👋');
+    }
+    if (hour < 18) {
+      return const _GreetingMeta(salutation: 'Good Afternoon', emoji: '👋');
+    }
+    return const _GreetingMeta(salutation: 'Good Evening', emoji: '👋');
   }
 }
 
