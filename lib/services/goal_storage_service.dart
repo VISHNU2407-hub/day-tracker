@@ -141,10 +141,11 @@ class GoalStorageService {
       id,
       existingGoal.copyWith(
         progress: normalizedProgress,
-        isCompleted: willComplete || existingGoal.isCompleted,
-        completedAt: willComplete ? (existingGoal.completedAt ?? now) : existingGoal.completedAt,
-        status: willComplete ? GoalStatus.completed : existingGoal.status,
+        isCompleted: willComplete,
+        completedAt: willComplete ? (existingGoal.completedAt ?? now) : null,
+        status: willComplete ? GoalStatus.completed : GoalStatus.active,
         updatedAt: now,
+        clearCompletedAt: !willComplete,
       ),
     );
   }

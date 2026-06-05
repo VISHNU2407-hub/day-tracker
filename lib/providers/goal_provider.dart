@@ -449,10 +449,10 @@ class GoalProvider extends ChangeNotifier {
       _goals[index] = existing.copyWith(
         progress: newProgress,
         isCompleted: willComplete,
-        completedAt:
-            willComplete ? (existing.completedAt ?? now) : existing.completedAt,
-        status: willComplete ? GoalStatus.completed : existing.status,
+        completedAt: willComplete ? (existing.completedAt ?? now) : null,
+        status: willComplete ? GoalStatus.completed : GoalStatus.active,
         updatedAt: now,
+        clearCompletedAt: !willComplete,
       );
 
       await _goalStorageService.updateGoalProgress(id, newProgress);
@@ -474,9 +474,8 @@ class GoalProvider extends ChangeNotifier {
       _goals[index] = existing.copyWith(
         isCompleted: isCompleted,
         progress: isCompleted ? 1.0 : existing.progress,
-        completedAt:
-            isCompleted ? (existing.completedAt ?? now) : null,
-        status: isCompleted ? GoalStatus.completed : existing.status,
+        completedAt: isCompleted ? (existing.completedAt ?? now) : null,
+        status: isCompleted ? GoalStatus.completed : GoalStatus.active,
         updatedAt: now,
         clearCompletedAt: !isCompleted,
       );

@@ -83,11 +83,11 @@ class SubGoalStorageService {
       id,
       existing.copyWith(
         progress: normalizedProgress,
-        isCompleted: willComplete || existing.isCompleted,
-        completedAt:
-            willComplete ? (existing.completedAt ?? now) : existing.completedAt,
-        status: willComplete ? SubGoalStatus.completed : existing.status,
+        isCompleted: willComplete,
+        completedAt: willComplete ? (existing.completedAt ?? now) : null,
+        status: willComplete ? SubGoalStatus.completed : SubGoalStatus.active,
         updatedAt: now,
+        clearCompletedAt: !willComplete,
       ),
     );
   }

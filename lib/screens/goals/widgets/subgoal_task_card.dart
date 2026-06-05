@@ -11,11 +11,15 @@ class SubGoalTaskCard extends StatelessWidget {
   const SubGoalTaskCard({
     required this.task,
     this.onToggleComplete,
+    this.onEditTask,
+    this.onDeleteTask,
     super.key,
   });
 
   final SubGoalTaskItemViewModel task;
   final VoidCallback? onToggleComplete;
+  final VoidCallback? onEditTask;
+  final VoidCallback? onDeleteTask;
 
   bool get _isCompleted => task.state == SubGoalTaskState.completed;
   bool get _isOverdue => task.state == SubGoalTaskState.overdue;
@@ -33,7 +37,7 @@ class SubGoalTaskCard extends StatelessWidget {
     return ScalePress(
       onTap: onToggleComplete ?? () {},
       child: Ink(
-        padding: const EdgeInsets.fromLTRB(AppSpacing.sm, 10, AppSpacing.sm, AppSpacing.sm),
+        padding: const EdgeInsets.fromLTRB(AppSpacing.sm, 10, 4, AppSpacing.sm),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: borderColor),
@@ -69,10 +73,13 @@ class SubGoalTaskCard extends StatelessWidget {
                         ),
                       ),
                       if (task.hasReminder)
-                        const Icon(
-                          Icons.notifications_active_outlined,
-                          size: 16,
-                          color: AppColors.neonBlue,
+                        const Padding(
+                          padding: EdgeInsets.only(right: 4),
+                          child: Icon(
+                            Icons.notifications_active_outlined,
+                            size: 16,
+                            color: AppColors.neonBlue,
+                          ),
                         ),
                     ],
                   ),
@@ -114,9 +121,65 @@ class SubGoalTaskCard extends StatelessWidget {
                 ],
               ),
             ),
+            // 3-dot popup menu for edit/delete
+            _TaskMenu(
+              onEdit: onEditTask,
+              onDelete: onDeleteTask,
+            ),
           ],
         ),
       ),
+    );
+  }
+}
+
+/// 3-dot popup menu for edit/delete actions on a task card.
+class _TaskMenu extends StatelessWidget {
+  const _TaskMenu({
+    this.onEdit,
+    this.onDelete,
+  });
+
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return PopupMenuButton<String>(
+      icon: Icon(Icons.more_horiz_rounded, size: 18, color: colorScheme.onSurfaceVariant),
+      color: colorScheme.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      onSelected: (value) {
+        switch (value) {
+          case 'edit':
+            onEdit?.call();
+          case 'delete':
+            onDelete?.call();
+        }
+      },
+      itemBuilder: (context) => [
+        PopupMenuItem(
+          value: 'edit',
+          child: ListTile(
+            leading: Icon(Icons.edit_rounded, color: colorScheme.primary, size: 18),
+            title: Text('Edit', style: TextStyle(color: colorScheme.onSurface, fontSize: 13)),
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            visualDensity: VisualDensity.compact,
+          ),
+        ),
+        PopupMenuItem(
+          value: 'delete',
+          child: ListTile(
+            leading: Icon(Icons.delete_rounded, color: colorScheme.error, size: 18),
+            title: Text('Delete', style: TextStyle(color: colorScheme.error, fontSize: 13)),
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            visualDensity: VisualDensity.compact,
+          ),
+        ),
+      ],
     );
   }
 }

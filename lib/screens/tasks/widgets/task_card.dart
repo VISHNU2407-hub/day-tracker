@@ -93,20 +93,23 @@ class TaskCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: task.isCompleted
-              ? AppColors.neonGreen.withValues(alpha: 0.5)
-              : task.priority == TaskPriority.high
-                  ? const Color(0x5CFF8B78)
-                  : colorScheme.outline.withValues(alpha: 0.3),
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: onToggle,
+      child: Ink(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: task.isCompleted
+                ? AppColors.neonGreen.withValues(alpha: 0.5)
+                : task.priority == TaskPriority.high
+                    ? const Color(0x5CFF8B78)
+                    : colorScheme.outline.withValues(alpha: 0.3),
+          ),
+          color: colorScheme.surface,
         ),
-        color: colorScheme.surface,
-      ),
-      child: Row(
+        child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           // ── Left: task icon ──
@@ -197,7 +200,8 @@ class TaskCard extends StatelessWidget {
           ),
         ],
       ),
-    );
+    ),
+  );
   }
 }
 

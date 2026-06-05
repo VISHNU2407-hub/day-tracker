@@ -1,7 +1,6 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:habit_up/theme/app_colors.dart';
 import 'package:habit_up/theme/app_spacing.dart';
 
 class SubGoalProgressOverviewSection extends StatelessWidget {
@@ -9,16 +8,12 @@ class SubGoalProgressOverviewSection extends StatelessWidget {
     required this.progress,
     required this.completedTasks,
     required this.totalTasks,
-    required this.activeStreakDays,
-    required this.timelineSummary,
     super.key,
   });
 
   final double progress;
   final int completedTasks;
   final int totalTasks;
-  final int activeStreakDays;
-  final String timelineSummary;
 
   @override
   Widget build(BuildContext context) {
@@ -46,39 +41,6 @@ class SubGoalProgressOverviewSection extends StatelessWidget {
                   style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 3),
-                Text(
-                  'Execution stability: $activeStreakDays-day streak active',
-                  style: textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant.withValues(alpha: 0.92)),
-                ),
-                const SizedBox(height: 7),
-                Row(
-                  children: [
-                    const Icon(Icons.local_fire_department_rounded, size: 14, color: AppColors.warning),
-                    const SizedBox(width: 4),
-                    Text(
-                      '$activeStreakDays day momentum',
-                      style: textTheme.labelSmall?.copyWith(
-                        color: AppColors.warning,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 5),
-                Row(
-                  children: [
-                    const Icon(Icons.schedule_rounded, size: 14, color: AppColors.neonBlue),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        timelineSummary,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: textTheme.labelSmall?.copyWith(color: AppColors.neonBlue),
-                      ),
-                    ),
-                  ],
-                ),
               ],
             ),
           ),

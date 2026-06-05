@@ -372,11 +372,11 @@ class SubGoalProvider extends ChangeNotifier {
 
       _subGoals[index] = existing.copyWith(
         progress: newProgress,
-        isCompleted: willComplete || existing.isCompleted,
-        completedAt:
-            willComplete ? (existing.completedAt ?? now) : existing.completedAt,
-        status: willComplete ? SubGoalStatus.completed : existing.status,
+        isCompleted: willComplete,
+        completedAt: willComplete ? (existing.completedAt ?? now) : null,
+        status: willComplete ? SubGoalStatus.completed : SubGoalStatus.active,
         updatedAt: now,
+        clearCompletedAt: !willComplete,
       );
 
       await _subGoalStorageService.updateSubGoalProgress(id, newProgress);
@@ -398,7 +398,7 @@ class SubGoalProvider extends ChangeNotifier {
         isCompleted: isCompleted,
         progress: isCompleted ? 1.0 : existing.progress,
         completedAt: isCompleted ? (existing.completedAt ?? now) : null,
-        status: isCompleted ? SubGoalStatus.completed : existing.status,
+        status: isCompleted ? SubGoalStatus.completed : SubGoalStatus.active,
         updatedAt: now,
         clearCompletedAt: !isCompleted,
       );

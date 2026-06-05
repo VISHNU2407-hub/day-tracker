@@ -4,10 +4,10 @@ import 'package:habit_up/models/task_model.dart';
 import 'package:habit_up/providers/sub_goal_provider.dart';
 import 'package:habit_up/providers/task_provider.dart';
 import 'package:habit_up/screens/goals/widgets/subgoal_details_models.dart';
-
 import 'package:habit_up/screens/goals/widgets/subgoal_progress_overview_section.dart';
 import 'package:habit_up/screens/goals/widgets/subgoal_task_card.dart';
 import 'package:habit_up/screens/goals/widgets/subgoal_tasks_empty_state.dart';
+import 'package:habit_up/screens/tasks/widgets/edit_task_dialog.dart';
 import 'package:habit_up/theme/app_colors.dart';
 import 'package:habit_up/theme/app_spacing.dart';
 import 'package:provider/provider.dart';
@@ -350,10 +350,6 @@ class _SubGoalDetailsScreenState extends State<SubGoalDetailsScreen> {
                   progress: subGoal.progress,
                   completedTasks: completedTasks,
                   totalTasks: tasks.length,
-                  activeStreakDays: subGoal.streak,
-                  timelineSummary: subGoal.deadline != null
-                      ? 'Deadline: ${subGoal.deadline!.day}/${subGoal.deadline!.month}'
-                      : 'No deadline set',
                 ),
                 const SizedBox(height: 10),
                 // Compact 4-card analytics row
@@ -380,62 +376,25 @@ class _SubGoalDetailsScreenState extends State<SubGoalDetailsScreen> {
                   ...tasks.map(
                     (task) => Padding(
                       padding: const EdgeInsets.only(bottom: AppSpacing.xs),
-                      child: Column(
-                        children: [
-                          SubGoalTaskCard(
-                            task: _toSubGoalTaskViewModel(task),
-                            onToggleComplete: () async {
-                              await taskProvider.toggleTaskCompletion(task.id);
-                              final updatedTasks = taskProvider
-                                  .getTasksForSubGoal(widget.subGoalId);
-                              final completedCount = updatedTasks
-                                  .where((t) => t.isCompleted)
-                                  .length;
-                              await subGoalProvider.calculateProgressFromTasks(
-                                subGoalId: widget.subGoalId,
-                                completedTaskCount: completedCount,
-                                totalTaskCount: updatedTasks.length,
-                              );
-                            },
-                          ),
-                          const SizedBox(height: 4),
-                          // Scheduling action row
-                          _ScheduleActionsRow(
-                            onPushToday: () async {
-                              await taskProvider.scheduleTaskForToday(task.id);
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Task scheduled for today'),
-                                    behavior: SnackBarBehavior.floating,
-                                    duration: Duration(seconds: 1),
-                                  ),
-                                );
-                              }
-                            },
-                            onPushTomorrow: () async {
-                              await taskProvider.scheduleTaskForTomorrow(
-                                task.id,
-                              );
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      'Task scheduled for tomorrow',
-                                    ),
-                                    behavior: SnackBarBehavior.floating,
-                                    duration: Duration(seconds: 1),
-                                  ),
-                                );
-                              }
-                            },
-                            onPickDate: () => _showDatePickerForTask(
-                              context,
-                              task,
-                              taskProvider,
-                            ),
-                          ),
-                        ],
+                      child: SubGoalTaskCard(
+                        task: _toSubGoalTaskViewModel(task),
+                        onToggleComplete: () async {
+                          await taskProvider.toggleTaskCompletion(task.id);
+                          final updatedTasks = taskProvider
+                              .getTasksForSubGoal(widget.subGoalId);
+                          final completedCount = updatedTasks
+                              .where((t) => t.isCompleted)
+                              .length;
+                          await subGoalProvider.calculateProgressFromTasks(
+                            subGoalId: widget.subGoalId,
+                            completedTaskCount: completedCount,
+                            totalTaskCount: updatedTasks.length,
+                          );
+                        },
+                        onEditTask: () =>
+                            _showEditTaskDialog(context, task, taskProvider),
+                        onDeleteTask: () =>
+                            _confirmDeleteTask(context, task, taskProvider),
                       ),
                     ),
                   ),
@@ -524,31 +483,54 @@ class _SubGoalDetailsScreenState extends State<SubGoalDetailsScreen> {
     );
   }
 
-  void _showDatePickerForTask(
+  void _showEditTaskDialog(
     BuildContext context,
     TaskModel task,
     TaskProvider taskProvider,
-  ) async {
-    final picked = await showDatePicker(
+  ) {
+    showEditTaskDialog(context, task, taskProvider);
+  }
+
+  void _confirmDeleteTask(
+    BuildContext context,
+    TaskModel task,
+    TaskProvider taskProvider,
+  ) {
+    final colorScheme = Theme.of(context).colorScheme;
+    showDialog(
       context: context,
-      initialDate: task.scheduledDate ?? DateTime.now(),
-      firstDate: DateTime.now().subtract(const Duration(days: 1)),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
-      builder: (context, child) => Theme(
-        data: Theme.of(context).copyWith(
-          colorScheme: const ColorScheme.dark(
-            primary: AppColors.neonCyan,
-            onPrimary: Colors.black,
-            surface: Color(0xFF121734),
-            onSurface: AppColors.textPrimary,
-          ),
+      builder: (ctx) => AlertDialog(
+        backgroundColor: colorScheme.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'Delete Task',
+          style: TextStyle(color: colorScheme.onSurface),
         ),
-        child: child!,
+        content: Text(
+          'Delete "${task.title}"?',
+          style: TextStyle(color: colorScheme.onSurfaceVariant),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text(
+              'Cancel',
+              style: TextStyle(color: colorScheme.onSurfaceVariant),
+            ),
+          ),
+          TextButton(
+            onPressed: () async {
+              await taskProvider.deleteTask(task.id);
+              if (ctx.mounted) Navigator.of(ctx).pop();
+            },
+            child: Text(
+              'Delete',
+              style: TextStyle(color: colorScheme.error),
+            ),
+          ),
+        ],
       ),
     );
-    if (picked != null && context.mounted) {
-      await taskProvider.scheduleTaskForDate(task.id, picked);
-    }
   }
 
   void _confirmDeleteSubGoal(
@@ -888,103 +870,6 @@ class _CompactSubGoalStats extends StatelessWidget {
             textTheme: textTheme,
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _ScheduleActionsRow extends StatelessWidget {
-  const _ScheduleActionsRow({
-    required this.onPushToday,
-    required this.onPushTomorrow,
-    required this.onPickDate,
-  });
-
-  final VoidCallback onPushToday;
-  final VoidCallback onPushTomorrow;
-  final VoidCallback onPickDate;
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    return Padding(
-      padding: const EdgeInsets.only(left: 4),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          children: [
-            _ScheduleChip(
-              icon: Icons.wb_sunny_outlined,
-              label: 'Today',
-              color: AppColors.neonCyan,
-              onTap: onPushToday,
-              textTheme: textTheme,
-            ),
-            const SizedBox(width: 6),
-            _ScheduleChip(
-              icon: Icons.nightlight_round,
-              label: 'Tomorrow',
-              color: AppColors.neonBlue,
-              onTap: onPushTomorrow,
-              textTheme: textTheme,
-            ),
-            const SizedBox(width: 6),
-            _ScheduleChip(
-              icon: Icons.calendar_today_rounded,
-              label: 'Pick Date',
-              color: AppColors.warning,
-              onTap: onPickDate,
-              textTheme: textTheme,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ScheduleChip extends StatelessWidget {
-  const _ScheduleChip({
-    required this.icon,
-    required this.label,
-    required this.color,
-    required this.onTap,
-    required this.textTheme,
-  });
-
-  final IconData icon;
-  final String label;
-  final Color color;
-  final VoidCallback onTap;
-  final TextTheme textTheme;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: color.withValues(alpha: 0.2)),
-          color: color.withValues(alpha: 0.06),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 12, color: color),
-            const SizedBox(width: 3),
-            Text(
-              label,
-              style: textTheme.labelSmall?.copyWith(
-                color: color,
-                fontWeight: FontWeight.w600,
-                fontSize: 10,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
